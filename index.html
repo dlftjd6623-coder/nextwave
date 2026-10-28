@@ -695,7 +695,7 @@ function vBook(){
       <div class="field"><label for="b-dur">이용 시간</label><select class="in" id="b-dur" data-live="1" data-change="bdur">${durs.map(m=>`<option value="${m}" ${m===b.dur?'selected':''}>${durLabel(m)} (~${hm(b.start+m)})</option>`).join('')}</select></div>`
       :`<div class="notice-bar">오늘 예약 가능한 시간이 지났습니다. 다른 날짜를 골라 주세요. (운영 ${hm(st.open)}–${hm(st.close)})</div>`}
     </div>
-    ${R.on?`<div class="notice-bar ${R.availErr?'bad':'info'}" style="margin-bottom:10px">${R.availErr?esc(R.availErr):R.availBusy?'팀 DB에서 좌석 현황을 불러오는 중…':'팀 DB 실시간 좌석 현황 · 30초마다 갱신'}</div>`:''}<div class="map-wrap">${mapSVG({date:b.date,s,e,sel:b.seat})}</div>${LEGEND}
+    ${R.on?`<div class="notice-bar ${R.availErr?'bad':'info'}" style="margin-bottom:10px">${R.availErr?esc(R.availErr):R.availBusy?'팀 DB에서 좌석 현황을 불러오는 중…':'팀 DB 실시간 좌석 현황 · 5초마다 갱신'}</div>`:''}<div class="map-wrap">${mapSVG({date:b.date,s,e,sel:b.seat})}</div>${LEGEND}
   </div><aside class="side">${bookPanel(s,e)}</aside></div>`;
 }
 function bookPanel(s,e){
@@ -1284,7 +1284,11 @@ async function rInit(){
     R.rules=rules.data||[];if(plan.data&&plan.data.amount_won)R.dayPrice=Number(plan.data.amount_won);}catch(e){}
   sb.auth.onAuthStateChange((_ev,session)=>{setTimeout(()=>rLoadMe(session),0);});
   const {data}=await sb.auth.getSession();await rLoadMe(data.session);
-  setInterval(()=>{if(!R.on)return;rRefreshBase();if(R.me)rLoadMine();R.availKey='';schedule();},30000);
+  /* 다른 회원의 예약·취소가 바로 보이도록 5초마다(화면을 보고 있을 때만), 그리고 탭으로 돌아올 때 즉시 새로고침 */
+  const refresh=()=>{if(!R.on||document.hidden)return;rRefreshBase();if(R.me)rLoadMine();R.availKey='';
+    const b=S.book;if(S.view==='book'&&b.start!=null)rEnsureAvail(b.date,b.start,b.start+b.dur);schedule();};
+  setInterval(refresh,5000);
+  document.addEventListener('visibilitychange',refresh);window.addEventListener('focus',refresh);
   return true;
 }
 async function rRefreshBase(){const {data}=await sb.from('nw_space_seats').select('id,code,status').order('code');if(data)data.forEach(s=>R.base[s.code]=s.status);}
