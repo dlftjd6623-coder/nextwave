@@ -1312,7 +1312,7 @@ async function rLoadMine(){
 }
 async function rEnsureAdmin(date,force){
   const key=date||'';if(!force&&R.adminKey===key)return;R.adminKey=key;
-  try{const d=await rpc('nw_admin_reservations',{p_date:date||today(),p_status:null,p_search:null,p_limit:200,p_offset:0});
+  try{const d=await rpc('nw_admin_reservations',{p_date:date||today(),p_status:null,p_search:null,p_limit:100,p_offset:0});
     R.res=(d&&Array.isArray(d.items)?d.items:[]).map(r=>mapRes(r,null));}catch(e){R.res=[];toast(errMsg(e));}
   schedule();
 }
