@@ -1417,8 +1417,10 @@ const RFORM={
     if(pw!==pw2)e.pw2='비밀번호가 서로 다릅니다.';if(name.length<2)e.name='이름을 2자 이상 입력하세요.';
     if(!$('#su-agree').checked)e.agree='개인정보 수집·이용에 동의해야 가입할 수 있습니다.';
     S.errs=e;if(Object.keys(e).length){render();return;}
-    const {error}=await sb.auth.signUp({email,password:pw,options:{data:{display_name:name},emailRedirectTo:TEAM_SITE+'/account.html'}});
+    const {data,error}=await sb.auth.signUp({email,password:pw,options:{data:{display_name:name},emailRedirectTo:TEAM_SITE+'/account.html'}});
     if(error){S.errs={req:/registered|exists/i.test(error.message)?'이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용하세요.':errMsg(error)};render();return;}
+    /* 이미 인증까지 끝난 이메일이면 Supabase는 오류 없이 성공처럼 응답하고 메일을 보내지 않는다 */
+    if(data&&data.user&&Array.isArray(data.user.identities)&&data.user.identities.length===0){S.errs={req:'이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용하세요.'};render();return;}
     R.signupSent=email;S.errs={};render();},
   async reset(){const email=val('rs-email').toLowerCase();if(!EMAIL_RE.test(email)){S.errs={email:'가입한 이메일을 입력하세요.'};render();return;}
     const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:TEAM_SITE+'/account.html'});
