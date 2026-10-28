@@ -1457,7 +1457,9 @@ const RFORM={
     try{await rpc('nw_transition_complaint',{p_complaint_id:id,p_status:map[stv]||'in_progress',p_note:note||'운영자가 확인했습니다.'});toast('처리 상태를 저장했습니다. 고객에게 알림이 갑니다.');await rLoadComplaints();}catch(e){toast(errMsg(e));}},
   async pw(){const nw=$('#pw-new').value;if(nw.length<8||!/[a-zA-Z]/.test(nw)||!/\d/.test(nw)){S.errs={nw:'8자 이상, 영문과 숫자를 함께 넣어 주세요.'};render();return;}
     const {error}=await sb.auth.updateUser({password:nw});if(error){S.errs={nw:errMsg(error)};render();return;}S.modal=null;render();toast('비밀번호를 변경했습니다.');},
-  async withdraw(){try{await rpc('nw_withdraw_with_consent',{p_reason:null,p_consent:true,p_policy_version:'withdrawal-2026-10-27'});await sb.auth.signOut();S.modal=null;go('home');toast('탈퇴 요청을 저장했습니다.');}catch(e){S.errs={wd:errMsg(e)};render();}}
+  async withdraw(){try{const d=await rpc('nw_request_withdrawal',{p_reason:null});
+      if(d&&d.status==='blocked'){S.errs={wd:`지금은 탈퇴할 수 없습니다: ${d.blocked_reason||'처리 중인 내역이 있습니다.'}`};render();return;}
+      await sb.auth.signOut();S.modal=null;go('home');toast('탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.');}catch(e){S.errs={wd:errMsg(e)};render();}}
 };
 async function rLoadComplaints(){
   R.compLoaded=true;
