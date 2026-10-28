@@ -755,7 +755,8 @@ function doReserve(){
 /* ===== 고객: 멤버십 ===== */
 function vPasses(){
   const P=SET().prices,me=ME(),mine=me?myPasses(me.id):[];
-  const opt=(kind,i,label,price,sub)=>`<button class="opt" data-act="buypass" data-k="${kind}" data-i="${i}"><span>${label}${sub?`<br><small class="muted">${sub}</small>`:''}</span><span class="num">${won(price)}</span></button>`;
+  const using=k=>me&&k!=='hours'?activePassOf(me.id,k):null;
+  const opt=(kind,i,label,price,sub)=>`<button class="opt" data-act="buypass" data-k="${kind}" data-i="${i}" ${using(kind)?'disabled title="이미 이용 중인 멤버십이 있습니다" style="opacity:.45;cursor:not-allowed"':''}><span>${label}${sub?`<br><small class="muted">${sub}</small>`:''}</span><span class="num">${won(price)}</span></button>`;
   const rooms=freeRooms(P.team[0].d);
   return `<div class="head"><div><span class="eyebrow">FIND YOUR PLAN</span><h2>멤버십</h2><p>일하는 방식에 맞춰 고르세요. 구매 즉시 등록되고, 예약 결제 때 자동으로 선택할 수 있습니다. 자동 반복 결제는 하지 않습니다.</p></div></div>
   ${mine.length?`<div class="panel" style="margin-bottom:20px"><h3>보유 중인 멤버십</h3><div class="cards">${mine.map(passCard).join('')}</div></div>`:''}
@@ -777,9 +778,14 @@ function passCard(p){
   const detail=p.kind==='hours'?`잔여 <b class="num">${p.hoursLeft}</b> / ${p.hoursTotal}시간`:p.kind==='team'?`PROJECT ROOM 0${p.room} · 팀원 ${esc((p.members||[]).join(', ')||'없음')}`:p.kind==='locker'?`사물함 <b class="num">${p.lockerNo}번</b>`:'좌석 예약 0원';
   return `<div class="panel rcard" style="padding:14px"><div class="top-line"><b>${lab} ${esc(p.label)}</b><span class="pill ok">사용 중</span></div><div class="small">${detail}</div><div class="small muted">${p.startDate} ~ ${p.endDate}</div></div>`;
 }
+/* 같은 종류 멤버십을 이미 쓰고 있으면 중복 결제를 막는다 (시간권은 충전형이라 제외) */
+function activePassOf(userId,kind){return myPasses(userId).find(p=>p.kind===kind);}
+const PASS_NAME={hours:'시간권',period:'자유석 멤버십',team:'팀 멤버십',locker:'사물함'};
 function buyPass(k,i){
   const me=ME();if(!me){openLogin('passes');return;}
   const P=SET().prices,t=today();let item,pass;
+  if(k!=='hours'){const cur=activePassOf(me.id,k);
+    if(cur){S.modal={type:'notice',title:'이미 이용 중인 멤버십이 있습니다',body:`${PASS_NAME[k]} ${cur.label}을(를) ${cur.endDate}까지 이용 중이라 같은 멤버십을 또 결제할 수 없습니다. 기간이 끝난 뒤 다시 구매해 주세요.`};render();return;}}
   if(k==='hours'){item=P.hours[i];pass={kind:'hours',label:`${item.h}시간`,hoursTotal:item.h,hoursLeft:item.h,startDate:t,endDate:addDays(t,item.days-1)};}
   if(k==='period'){item=P.period[i];pass={kind:'period',label:`${item.w}주`,startDate:t,endDate:addDays(t,item.w*7-1)};}
   if(k==='team'){item=P.team[i];const room=+val('tm-room');
@@ -1054,6 +1060,8 @@ function modalHTML(){
     <div class="field"><label for="pw-old">현재 비밀번호</label><input class="in ${e.old?'bad':''}" id="pw-old" type="password">${e.old?`<span class="err">${e.old}</span>`:''}</div>
     <div class="field"><label for="pw-new">새 비밀번호</label><input class="in ${e.nw?'bad':''}" id="pw-new" type="password">${e.nw?`<span class="err">${e.nw}</span>`:'<span class="hint">8자 이상, 영문+숫자</span>'}</div></div>
     <footer><button class="btn" type="button" data-act="close">취소</button><button class="btn pri" type="submit">변경</button></footer></form>`);
+  if(m.type==='notice')return shell(esc(m.title),`<div class="body"><div class="notice-bar">${esc(m.body)}</div></div>
+    <footer><button class="btn pri" type="button" data-act="close">확인</button></footer>`);
   return '';
 }
 
@@ -1418,7 +1426,7 @@ const RFORM={
   async rreq(){const m=S.modal;if(m.busy)return;const boxes=[...document.querySelectorAll('[data-rule]')];
     if(boxes.some(b=>!b.checked)){S.errs={rules:'모든 이용 규칙에 동의해야 예약할 수 있습니다.'};render();return;}
     m.busy=true;S.errs={};render();
-    try{const d=await rpc('nw_request_reservation',{p_seat_id:R.seatId[m.seat],p_starts_at:kstISO(m.date,m.s),p_ends_at:kstISO(m.date,m.e),p_rule_ids:boxes.map(b=>b.dataset.rule),p_rule_versions:boxes.map(b=>Number(b.dataset.ver))});
+    try{const d=await rpc('nw_request_reservation',{p_seat_id:R.seatId[m.seat],p_starts_at:kstISO(m.date,m.s),p_ends_at:kstISO(m.date,m.e),p_rule_ids:boxes.map(b=>b.dataset.rule),p_rule_versions:boxes.map(b=>({id:b.dataset.rule,version:Number(b.dataset.ver)}))});
       const row=Array.isArray(d)?d[0]:d;S.modal=null;S.book.seat=null;R.availKey='';await rLoadMine();go('my',{mytab:'now'});
       toast(`${m.seat} 예약 요청을 저장했습니다. 요금 ${won(row&&row.amount_won||priceFor(m.seat,m.e-m.s))} · 운영자 승인 후 확정됩니다.`);}
     catch(e){m.busy=false;S.errs={req:errMsg(e)};render();}},
