@@ -718,7 +718,7 @@ function bookPanel(s,e){
     body=`<dl class="kv"><dt>요금 기준</dt><dd>${'시간 요금 · '+durLabel(b.dur)+(R.on?' · 현장 결제':'')}</dd></dl>
       <div class="spread"><span class="muted">결제 금액</span><span class="price">${won(price)}</span></div>
       ${pp?`<div class="notice-bar info">정기권 이용 기간이라 0원으로 예약할 수 있습니다.</div>`:hp?`<div class="notice-bar info">시간권에서 ${durLabel(b.dur)} 차감으로 결제할 수 있습니다. (잔여 ${hp.hoursLeft}시간)</div>`:''}
-      ${blocked?`<div class="notice-bar bad">노쇼 누적으로 ${fmtTs(me.blockedUntil)}까지 예약이 제한되어 있습니다.</div>`:`<button class="btn pri block" data-act="reserve">${me?(R.on?'예약 요청하기':'예약하고 결제하기'):'로그인하고 예약하기'}</button>`}`;
+      ${blocked?`<div class="notice-bar bad">노쇼 누적으로 ${fmtTs(me.blockedUntil)}까지 예약이 제한되어 있습니다.</div>`:`<button class="btn pri block" data-act="reserve">${me?('예약하고 결제하기'):'로그인하고 예약하기'}</button>`}`;
   }else{
     const zoneFree=zoneSeats(seat.zone).filter(x=>seatInfo(x,b.date,s,e).st==='free').length;
     body=`<div class="notice-bar ${info.st==='off'?'bad':''}">${esc(info.label)}${info.memo?` · ${esc(info.memo)}`:''}</div>
@@ -729,7 +729,7 @@ function bookPanel(s,e){
 function payMethods(extra){
   return `<div class="methods">${(extra||[]).concat([['card','신용·체크카드'],['kakao','카카오페이'],['naver','네이버페이'],['toss','토스페이']]).map(([v,l],i)=>`<label><input type="radio" name="pm" id="pm-${v}" value="${v}" ${i===0?'checked':''}>${l}</label>`).join('')}</div>`;
 }
-const PM={card:'카드',kakao:'카카오페이',naver:'네이버페이',toss:'토스페이',hours:'시간권 차감',period:'정기권',cash:'현금',onsite:'현장 카드'};
+const PM={easy:'간편결제(시연)',card:'카드',kakao:'카카오페이',naver:'네이버페이',toss:'토스페이',hours:'시간권 차감',period:'정기권',cash:'현금',onsite:'현장 카드'};
 function doReserve(){
   if(R.on)return rReserve();
   const me=ME();if(!me){openLogin('book');return;}
@@ -1270,7 +1270,7 @@ async function rpc(name,args){const {data,error}=await sb.rpc(name,args||{});if(
 function mapRes(row,me){
   const a=kp(row.starts_at),b=kp(row.ends_at),end=b.date>a.date?b.min+1440:b.min;
   return {id:row.id,code:String(row.id).replace(/-/g,'').slice(0,6).toUpperCase(),userId:me?me.id:(row.user_id||null),name:row.customer_name||(me&&me.name)||'고객',phone:'',
-    seatId:row.seat_code||R.codeOf[row.seat_id]||'?',date:a.date,start:a.min,end,price:Number(row.amount_won)||0,pay:'onsite',
+    seatId:row.seat_code||R.codeOf[row.seat_id]||'?',date:a.date,start:a.min,end,price:Number(row.amount_won)||0,pay:row.payment_timing==='before_confirmation'?'easy':'onsite',
     status:RRES[row.status]||row.status,raw:row.status,approval:row.approval_state,payStatus:row.payment_status,source:row.source==='onsite'?'walkin':'app',
     createdAt:new Date(row.created_at||row.starts_at).getTime(),note:row.review_note||''};
 }
@@ -1350,12 +1350,13 @@ function rReserve(){
 }
 const RMODAL={
   rreq:(shell,e)=>{const m=S.modal,seat=SEAT[m.seat];
-    return shell('예약 요청',`<form data-form="rreq" novalidate><div class="body">
-      <dl class="kv"><dt>좌석</dt><dd>${seat.id} · ${ZONES[seat.zone].label}</dd><dt>일시</dt><dd>${fmtDate(m.date)} ${hm(m.s)}–${hm(m.e)}</dd><dt>요금</dt><dd>${won(priceFor(seat.id,m.e-m.s))} · ${durLabel(m.e-m.s)} · 현장 결제</dd></dl>
-      <div class="notice-bar info">요청 후 운영자가 승인하면 예약이 확정됩니다. 결제는 방문해서 현장에서 합니다.</div>
+    return shell('예약 결제',`<form data-form="rreq" novalidate><div class="body">
+      <dl class="kv"><dt>좌석</dt><dd>${seat.id} · ${ZONES[seat.zone].label}</dd><dt>일시</dt><dd>${fmtDate(m.date)} ${hm(m.s)}–${hm(m.e)}</dd><dt>이용 시간</dt><dd>${durLabel(m.e-m.s)}</dd><dt>결제 금액</dt><dd><b class="num">${won(priceFor(seat.id,m.e-m.s))}</b></dd></dl>
+      <div class="field"><label>간편결제 수단</label>${payMethods()}</div>
+      <div class="notice-bar info">결제가 승인되면 예약이 바로 확정됩니다. 시연용 결제라 실제로 청구되지 않습니다.</div>
       <div class="field"><label>이용 규칙 동의</label>${R.rules.map(r=>`<label class="check"><input type="checkbox" id="rule-${r.id}" data-rule="${r.id}" data-ver="${r.version}"> <span><b>${esc(r.title)}</b>${r.body?` · ${esc(r.body)}`:''}</span></label>`).join('')||'<span class="hint">동의할 규칙이 없습니다.</span>'}${e.rules?`<span class="err">${e.rules}</span>`:''}</div>
       ${e.req?`<div class="notice-bar bad">${esc(e.req)}</div>`:''}</div>
-      <footer><button class="btn" type="button" data-act="close">취소</button><button class="btn pri" type="submit" ${m.busy?'disabled':''}>${m.busy?'요청 중…':'예약 요청'}</button></footer></form>`);},
+      <footer><button class="btn" type="button" data-act="close">취소</button><button class="btn pri" type="submit" ${m.busy?'disabled':''}>${m.busy?'결제 승인 중…':`${won(priceFor(seat.id,m.e-m.s))} 결제하기`}</button></footer></form>`);},
   qr:(shell)=>{const m=S.modal,r=R.res.find(x=>x.id===m.id);if(!r)return '';
     return shell('입장 QR',`<div class="body">${m.token?`<div class="qr"><div data-qr="${esc(m.token)}"></div><div class="code">${r.code}</div></div><p class="small muted">만료 ${fmtTs(new Date(m.exp).getTime())} · 다른 사람에게 공유하지 마세요.</p>`:`<p class="muted">${m.err?esc(m.err):'QR을 발급하는 중…'}</p>`}
       <dl class="kv"><dt>좌석</dt><dd class="mono">${r.seatId}</dd><dt>일시</dt><dd>${fmtDate(r.date)} ${hm(r.start)}–${hm(r.end)}</dd><dt>상태</dt><dd>${resStatusPill(r)}</dd></dl>
@@ -1438,9 +1439,10 @@ const RFORM={
   async rreq(){const m=S.modal;if(m.busy)return;const boxes=[...document.querySelectorAll('[data-rule]')];
     if(boxes.some(b=>!b.checked)){S.errs={rules:'모든 이용 규칙에 동의해야 예약할 수 있습니다.'};render();return;}
     m.busy=true;S.errs={};render();
-    try{const d=await rpc('nw_request_reservation',{p_seat_id:R.seatId[m.seat],p_starts_at:kstISO(m.date,m.s),p_ends_at:kstISO(m.date,m.e),p_rule_ids:boxes.map(b=>b.dataset.rule),p_rule_versions:boxes.map(b=>({id:b.dataset.rule,version:Number(b.dataset.ver)}))});
+    const pm=document.querySelector('input[name="pm"]:checked')?.value||'card';
+    try{const d=await rpc('nw_pay_reservation',{p_seat_id:R.seatId[m.seat],p_starts_at:kstISO(m.date,m.s),p_ends_at:kstISO(m.date,m.e),p_rule_ids:boxes.map(b=>b.dataset.rule),p_rule_versions:boxes.map(b=>({id:b.dataset.rule,version:Number(b.dataset.ver)})),p_method:pm});
       const row=Array.isArray(d)?d[0]:d;S.modal=null;S.book.seat=null;R.availKey='';await rLoadMine();go('my',{mytab:'now'});
-      toast(`${m.seat} 예약 요청을 저장했습니다. 요금 ${won(row&&row.amount_won||priceFor(m.seat,m.e-m.s))} · 운영자 승인 후 확정됩니다.`);}
+      toast(`${m.seat} 결제가 승인되어 예약이 확정되었습니다. ${row&&row.payment_method||PM[pm]} ${won(row&&row.amount_won||priceFor(m.seat,m.e-m.s))} · 시작 15분 안에 QR로 체크인해 주세요.`);}
     catch(e){m.busy=false;S.errs={req:errMsg(e)};render();}},
   async complaint(){const me=ME(),body=val('cp-body'),cat=document.querySelector('input[name="cat"]:checked')?.value,seat=val('cp-seat').toUpperCase();
     if(body.length<5){S.errs={cpBody:'내용을 5자 이상 적어 주세요.'};render();return;}
