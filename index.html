@@ -956,7 +956,7 @@ function vARes(){
   return `<div class="head"><div><h2>예약 내역</h2><p>앱 예약과 현장 접수가 함께 저장됩니다. 취소하면 환불 규정에 따라 금액이 자동 계산됩니다.</p></div></div>
   <div class="row" style="margin-bottom:12px"><input type="date" class="in" id="rf-date" data-live="1" data-change="rfdate" value="${f.date}" style="width:auto"><button class="btn sm" data-act="rfall">전체 날짜</button>
   <select class="in" id="rf-st" data-live="1" data-change="rfst" style="width:auto">${[['all','전체 상태'],['booked','체크인 대기'],['checkedin','이용중'],['done','이용 완료'],['cancelled','취소'],['noshow','노쇼']].map(([v,l])=>`<option value="${v}" ${f.status===v?'selected':''}>${l}</option>`).join('')}</select><span class="small muted">${rs.length}건</span></div>
-  ${rs.length?`<div class="tbl-wrap"><table><thead><tr><th>날짜</th><th>시간</th><th>좌석</th><th>예약자</th><th>경로</th><th>상태</th><th class="r">결제</th><th class="r">환불</th><th>번호</th><th></th></tr></thead><tbody>${rs.map(r=>`<tr><td>${fmtDate(r.date)}</td><td class="num">${hm(r.start)}–${hm(r.end)}</td><td class="mono">${r.seatId}</td><td>${esc(r.name)}<br><span class="small muted num">${esc(r.phone||'')}</span></td><td>${r.source==='walkin'?'<span class="pill">현장</span>':'<span class="pill info">앱</span>'}</td><td>${resStatusPill(r)}</td><td class="r num">${won(r.price)}<br><span class="small muted">${PM[r.pay]||''}</span></td><td class="r num">${r.status==='cancelled'?(r.refundHours?r.refundHours+'시간':won(r.refund||0))+`<br><span class="small muted">${Math.round((r.refundRatio||0)*100)}%</span>`:'-'}</td><td class="mono">${r.code}</td><td>${r.status==='pending'?`<button class="btn sm pri" data-act="ain" data-id="${r.id}">승인</button> <button class="btn sm" data-act="adecline" data-id="${r.id}">반려</button> <button class="btn sm warn" data-act="cancel" data-id="${r.id}">취소</button>`:r.status==='booked'?`<button class="btn sm" data-act="ain" data-id="${r.id}">체크인</button> <button class="btn sm warn" data-act="cancel" data-id="${r.id}">취소</button>`:r.status==='checkedin'?`<button class="btn sm" data-act="checkout" data-id="${r.id}">퇴실</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-box">조건에 맞는 예약이 없습니다.</div>'}`;
+  ${rs.length?`<div class="tbl-wrap"><table><thead><tr><th>날짜</th><th>시간</th><th>좌석</th><th>예약자</th><th>경로</th><th>상태</th><th class="r">결제</th><th class="r">환불</th><th>번호</th><th></th></tr></thead><tbody>${rs.map(r=>`<tr><td>${fmtDate(r.date)}</td><td class="num">${hm(r.start)}–${hm(r.end)}</td><td class="mono">${r.seatId}</td><td>${esc(r.name)}<br><span class="small muted num">${esc(r.phone||'')}</span></td><td>${r.source==='walkin'?'<span class="pill">현장</span>':'<span class="pill info">앱</span>'}</td><td>${resStatusPill(r)}</td><td class="r num">${won(r.price)}<br><span class="small muted">${PM[r.pay]||''}</span></td><td class="r num">${r.status==='cancelled'?(r.refundHours?r.refundHours+'시간':won(r.refund||0))+`<br><span class="small muted">${Math.round((r.refundRatio||0)*100)}%</span>`:'-'}</td><td class="mono">${r.code}</td><td>${r.status==='pending'?`<button class="btn sm pri" data-act="ain" data-id="${r.id}">승인</button> <button class="btn sm" data-act="adecline" data-id="${r.id}">반려</button> <button class="btn sm warn" data-act="cancel" data-id="${r.id}">취소</button>`:r.status==='booked'?`<button class="btn sm" data-act="ain" data-id="${r.id}">체크인</button> <button class="btn sm warn" data-act="cancel" data-id="${r.id}">취소</button>`:r.status==='checkedin'?`<button class="btn sm" data-act="checkout" data-id="${r.id}">퇴실</button>`:['cancelled','noshow','done'].includes(r.status)?`<button class="btn sm" data-act="adelres" data-id="${r.id}" title="이 예약 기록을 영구 삭제">기록 삭제</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-box">조건에 맞는 예약이 없습니다.</div>'}`;
 }
 
 /* ===== 관리자: 민원 ===== */
@@ -1104,6 +1104,9 @@ const ACT={
   aseat:t=>{S.aSeat=S.aSeat===t.dataset.id?null:t.dataset.id;S.errs={};fresh=true;render();},
   walkseat:t=>{S.walk.seat=t.dataset.id;S.atab='walk';go(S.view);},
   rfall:()=>{S.rf.date='';render();},
+  adelres:async t=>{const r=D.reservations[t.dataset.id];if(!r)return;
+    if(!confirm(`${r.seatId} ${fmtDate(r.date)} ${hm(r.start)} 예약 기록을 삭제할까요? 되돌릴 수 없습니다.`))return;
+    await Store.del('reservations',r.id);toast('예약 기록을 삭제했습니다.');},
   unblock:t=>{Store.patch('users',t.dataset.id,{blockedUntil:0,noShows:[]});toast('예약 제한을 해제했습니다.');},
   herodel:()=>{Store.settings({...SET(),hero:null});},
   sendcode:async t=>{const p=t.dataset.p,email=val(p+'-email').toLowerCase();
@@ -1406,7 +1409,10 @@ const RACT={
     else toast('입실은 고객이 받은 QR로 기록합니다.');},
   adecline:async t=>{try{await rpc('nw_decline_reservation',{p_reservation_id:t.dataset.id,p_note:null});toast('예약을 반려했습니다.');await rLoadMine();}catch(e){toast(errMsg(e));}},
   anoshow:async()=>{try{const d=await rpc('nw_process_no_shows',{});toast(`노쇼 ${d&&d.no_shows||0}건, 미입금 만료 ${d&&d.expired_unpaid||0}건을 처리했습니다.`);await rLoadMine();rRefreshBase();}catch(e){toast(errMsg(e));}},
-  rfall:()=>{S.rf.date=today();render();}
+  rfall:()=>{S.rf.date=today();render();},
+  adelres:async t=>{const r=R.res.find(x=>x.id===t.dataset.id);if(!r)return;
+    if(!confirm(`${r.seatId} ${fmtDate(r.date)} ${hm(r.start)} 예약 기록을 삭제할까요? 결제·환불 기록까지 함께 지워지고 되돌릴 수 없습니다.`))return;
+    try{await rpc('nw_admin_delete_reservation',{p_reservation_id:r.id});R.res=R.res.filter(x=>x.id!==r.id);R.availKey='';toast('예약 기록을 삭제했습니다.');await rLoadMine();}catch(e){toast(errMsg(e));}}
 };
 const RFORM={
   async login(f){const email=val('lg-id').toLowerCase(),pw=$('#lg-pw').value;
@@ -1465,7 +1471,8 @@ const RFORM={
     const {error}=await sb.auth.updateUser({password:nw});if(error){S.errs={nw:errMsg(error)};render();return;}S.modal=null;render();toast('비밀번호를 변경했습니다.');},
   async withdraw(){try{const d=await rpc('nw_request_withdrawal',{p_reason:null});
       if(d&&d.status==='blocked'){S.errs={wd:`지금은 탈퇴할 수 없습니다: ${d.blocked_reason||'처리 중인 내역이 있습니다.'}`};render();return;}
-      await sb.auth.signOut();S.modal=null;go('home');toast('탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.');}catch(e){S.errs={wd:errMsg(e)};render();}}
+      try{await sb.auth.signOut({scope:'local'});}catch(e){}
+      R.me=null;R.res=[];R.notices=[];S.modal=null;S.errs={};go('home');toast('탈퇴가 완료되어 로그아웃되었습니다. 개인 정보는 삭제되었습니다.');}catch(e){S.errs={wd:errMsg(e)};render();}}
 };
 async function rLoadComplaints(){
   R.compLoaded=true;
