@@ -248,6 +248,24 @@ td.r,th.r{text-align:right}
 .faq details{border-bottom:1px solid var(--line);padding:12px 0}
 .faq summary{cursor:pointer;font-weight:500}
 .faq p{margin-top:8px;color:var(--muted);font-size:14px}
+/* 파트너 업장 */
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.vcard{padding:0;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.vcard:hover{border-color:var(--muted)}
+.vc-img{position:relative;aspect-ratio:4/3;background:var(--sunk);overflow:hidden;max-width:100%}
+.vc-img img{width:100%;height:100%;object-fit:cover;display:block}
+.vc-noimg{display:grid;place-items:center;height:100%;color:var(--muted);font-size:13px}
+.vc-count{position:absolute;right:8px;bottom:8px;background:rgba(23,43,60,.75);color:#fff;font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px}
+.vc-body{padding:14px 16px;display:grid;gap:4px}
+.vc-body h3{margin-top:4px}
+.gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;border-radius:8px}
+.gallery img{flex:0 0 88%;max-width:88%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;scroll-snap-align:start}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.thumb{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;background:var(--sunk);border:1px solid var(--line);display:block}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.new{outline:2px dashed var(--accent);outline-offset:-2px}
+.thumb.add{display:grid;place-items:center;font-size:13px;color:var(--accent);cursor:pointer;border-style:dashed}
+.x-thumb{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:1;cursor:pointer}
 /* Leaflet 최소 스타일 (외부 CSS를 불러올 수 없어 필요한 부분만 인라인) */
 .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-layer{position:absolute;left:0;top:0}
 .leaflet-container{overflow:hidden;background:var(--sunk);font-family:var(--sans);-webkit-tap-highlight-color:transparent}
@@ -266,6 +284,7 @@ td.r,th.r{text-align:right}
 .leaflet-control-attribution a{color:#2B5C8C}
 .leaflet-grab{cursor:grab}.leaflet-dragging .leaflet-grab{cursor:grabbing}
 .nw-pin{display:grid;place-items:center}
+.nw-pin.partner span{background:#2F7A68}
 .nw-pin span{display:block;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#D75432;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .loading{padding:80px 0;text-align:center;color:var(--muted)}
 
@@ -509,7 +528,7 @@ function render(){
   for(const id in keep){const el=document.getElementById(id);if(!el||el.dataset.live)continue;if(el.type==='checkbox'||el.type==='radio')el.checked=keep[id];else el.value=keep[id];}
   if(act){const el=document.getElementById(act);if(el&&el.focus)el.focus({preventScroll:true});}
   document.querySelectorAll('[data-qr]').forEach(el=>{try{const q=qrcode(0,'M');q.addData(el.dataset.qr);q.make();el.innerHTML=q.createSvgTag({cellSize:4,margin:2});}catch(e){el.textContent='';}});
-  if(ready)mountMap();
+  if(ready){mountMap();mountVMap();mountPMap();}
 }
 function go(v,extra){S.view=v;S.bell=false;Object.assign(S,extra||{});fresh=true;S.errs={};render();window.scrollTo({top:0});}
 let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3400);}
@@ -520,8 +539,8 @@ const LOGO='<svg width="30" height="30" viewBox="0 0 30 30"><rect x="1" y="1" wi
 function myNotices(){const me=ME();if(!me)return [];if(R.on)return R.notices;const keys=[me.id];if(me.role==='admin')keys.push('@admin');return Object.values(D.notices).filter(n=>keys.includes(n.userId)).sort((a,b)=>b.createdAt-a.createdAt);}
 function header(){
   const me=ME(),st=SET(),admin=isAdmin()&&!S.asCustomer;
-  const items=admin?[['dash','대시보드'],['aseat','좌석 관리'],['walk','현장 접수'],['ares','예약 내역'],['acomp','민원·문의'],['ausers','회원'],['aset','설정']]
-    :[['home','홈'],['book','좌석 예약'],['passes','멤버십'],['my','내 예약'],['support','고객 지원']];
+  const items=admin?[['dash','대시보드'],['aseat','좌석 관리'],['walk','현장 접수'],['ares','예약 내역'],['avenues','업장 심사'],['acomp','민원·문의'],['ausers','회원'],['aset','설정']]
+    :[['home','홈'],['book','좌석 예약'],['venues','업장 찾기'],['passes','멤버십'],['my','내 예약'],['support','고객 지원'],['partner','업장 등록']];
   const cur=admin?S.atab:S.view;
   const nav=items.map(([k,l])=>`<button class="${cur===k?'on':''}" data-act="${admin?'atab':'nav'}" data-v="${k}">${l}</button>`).join('');
   const ns=myNotices(),unread=ns.filter(n=>!n.read).length;
@@ -545,8 +564,8 @@ function footer(){return `<div class="mode-note wrap">${isDemoAdmin()&&MODE==='l
 function view(){
   if(R.on&&ME()){if(!R.compLoaded)rLoadComplaints();if(isAdmin())rEnsureAdmin(S.atab==='ares'?(S.rf.date||today()):today());}
   if(R.on&&isAdmin()&&!S.asCustomer&&RVIEW[S.atab])return RVIEW[S.atab]();
-  if(isAdmin()&&!S.asCustomer)return ({dash:vDash,aseat:vASeat,walk:vWalk,ares:vARes,acomp:vAComp,ausers:vAUsers,aset:vASet}[S.atab]||vDash)();
-  return ({home:vHome,book:vBook,passes:vPasses,my:vMy,support:vSupport,mypage:vMyPage}[S.view]||vHome)();
+  if(isAdmin()&&!S.asCustomer)return ({dash:vDash,avenues:vAVenues,aseat:vASeat,walk:vWalk,ares:vARes,acomp:vAComp,ausers:vAUsers,aset:vASet}[S.atab]||vDash)();
+  return ({home:vHome,venues:vVenues,partner:vPartner,book:vBook,passes:vPasses,my:vMy,support:vSupport,mypage:vMyPage}[S.view]||vHome)();
 }
 
 /* ===== 고객: 홈 ===== */
@@ -1249,7 +1268,7 @@ document.addEventListener('click',e=>{
   const f=(R.on&&RACT[t.dataset.act])||ACT[t.dataset.act];if(f)f(t,e);
 });
 document.addEventListener('keydown',e=>{
-  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('g[data-act]')){e.preventDefault();ACT[e.target.dataset.act]?.(e.target,e);}
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('g[data-act],[data-act][tabindex]')){e.preventDefault();ACT[e.target.dataset.act]?.(e.target,e);}
   if(e.key==='Escape'&&(S.modal||S.bell)){S.modal=null;S.bell=false;render();}
 });
 document.addEventListener('change',e=>{const t=e.target.closest('[data-change]');if(t&&CHANGE[t.dataset.change])CHANGE[t.dataset.change](t);
@@ -1303,7 +1322,7 @@ async function rInit(){
 async function rRefreshBase(){const {data}=await sb.from('nw_space_seats').select('id,code,status').order('code');if(data)data.forEach(s=>R.base[s.code]=s.status);}
 async function rLoadMe(session){
   const u=session&&session.user;
-  R.compLoaded=false;R.profLoaded=false;R.adminKey='';
+  R.compLoaded=false;R.profLoaded=false;R.adminKey='';if(R.vLoaded)R.vLoaded={};
   if(!u){R.me=null;R.res=[];R.notices=[];schedule();return;}
   let prof=null,admin=false;
   try{prof=(await sb.from('nw_profiles').select('id,display_name,is_admin').eq('id',u.id).maybeSingle()).data;}catch(e){}
@@ -1497,6 +1516,213 @@ const RVIEW={
   ausers:()=>{if(!R.profLoaded)rLoadProfiles();return `<div class="head"><div><h2>회원</h2><p>팀 DB(nw_profiles)에 등록된 회원입니다.</p></div></div>
     ${R.profiles.length?`<div class="tbl-wrap"><table><thead><tr><th>이름</th><th>구분</th><th>가입</th><th>ID</th><th></th></tr></thead><tbody>${R.profiles.map(p=>`<tr><td>${esc(p.display_name||'-')}</td><td>${p.is_admin?'<span class="pill hl">관리자</span>':p.display_name==='탈퇴 회원'?'<span class="pill">탈퇴</span>':'회원'}</td><td>${p.created_at?fmtTs(new Date(p.created_at).getTime()):'-'}</td><td class="mono small">${esc(String(p.id).slice(0,8))}</td><td>${!p.is_admin&&p.display_name!=='탈퇴 회원'&&p.id!==(R.me&&R.me.id)?`<button class="btn sm warn" data-act="adelmem" data-id="${p.id}">회원 삭제</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-box">회원 목록을 불러오는 중이거나 볼 권한이 없습니다.</div>'}`;}
 };
+
+/* ===== 파트너 업장 (nw_venues · nw_venue_photos · venue-photos 저장소) ===== */
+const VCAT={study_cafe:'스터디카페',shared_office:'공유오피스',study_room:'스터디룸',library:'도서관·열람실',other:'기타'};
+const VAMEN=['와이파이','콘센트','프린터','사물함','무료 음료','24시간','스터디룸','주차','휴게 공간','냉난방'];
+const VSTAT={pending:['심사 중','warn'],approved:['공개 중','ok'],rejected:['반려','bad'],hidden:['숨김','']};
+Object.assign(R,{venues:{public:[],mine:[],admin:[]},vLoaded:{},vErr:{},vBusy:{}});
+Object.assign(S,{vcat:'all',vedit:null,vform:false,vnew:[],vpos:null,vsaving:false,vconfirm:null,vfilter:'pending'});
+const purl=p=>`${SB_URL}/storage/v1/object/public/venue-photos/${p.split('/').map(encodeURIComponent).join('/')}`;
+const mapLink=v=>'https://map.naver.com/p/search/'+encodeURIComponent(v.name+' '+v.address);
+async function vLoad(scope){
+  if(!R.on||R.vBusy[scope])return;R.vBusy[scope]=true;
+  let q=sb.from('nw_venues').select('id,owner_id,name,category,address,lat,lng,phone,hours,seat_count,price_note,description,amenities,status,review_note,reviewed_at,created_at,updated_at,nw_venue_photos(id,path,sort_order)').order('created_at',{ascending:false});
+  if(scope==='public')q=q.eq('status','approved');
+  if(scope==='mine')q=q.eq('owner_id',R.me.id);
+  const {data,error}=await q;R.vBusy[scope]=false;R.vLoaded[scope]=true;
+  R.vErr[scope]=error?errMsg(error):'';
+  R.venues[scope]=(data||[]).map(v=>({...v,photos:(v.nw_venue_photos||[]).slice().sort((a,b)=>a.sort_order-b.sort_order)}));
+  if(scope==='public')R.vmapVer=(R.vmapVer||0)+1;
+  schedule();
+}
+function needDb(){return `<div class="notice-bar info">업장 기능은 팀 DB에 연결된 버전에서 동작합니다. 바탕화면의 NextWave_좌석예약.html 파일이나 GitHub 링크로 열어 주세요.</div>`;}
+function venueCard(v){
+  const cover=v.photos&&v.photos[0]?`<img src="${purl(v.photos[0].path)}" alt="${esc(v.name)} 사진" loading="lazy">`:`<div class="vc-noimg">사진 없음</div>`;
+  return `<article class="panel vcard" data-act="vopen" data-id="${v.id}" tabindex="0" role="button" aria-label="${esc(v.name)} 자세히 보기">
+    <div class="vc-img">${cover}${v.photos&&v.photos.length>1?`<span class="vc-count">사진 ${v.photos.length}</span>`:''}</div>
+    <div class="vc-body"><div class="spread"><span class="pill">${VCAT[v.category]||'기타'}</span>${v.seat_count?`<span class="small muted">${v.seat_count}석</span>`:''}</div>
+    <h3>${esc(v.name)}</h3><p class="small muted">${esc(v.address)}</p>${v.hours?`<p class="small">${esc(v.hours)}</p>`:''}${v.price_note?`<p class="small" style="color:var(--accent)">${esc(v.price_note)}</p>`:''}</div></article>`;
+}
+function vVenues(){
+  if(!R.on)return `<div class="head"><div><span class="eyebrow">PARTNER SPACES</span><h2>업장 찾기</h2></div></div>${needDb()}`;
+  if(!R.vLoaded.public)vLoad('public');
+  const list=R.venues.public.filter(v=>S.vcat==='all'||v.category===S.vcat);
+  const home=`<article class="panel vcard" data-act="nav" data-v="book" tabindex="0" role="button" aria-label="NextWave 좌석 예약"><div class="vc-img"><img src="${HERO_IMG}" alt="NextWave 공간"><span class="vc-count" style="background:var(--accent)">좌석 예약 가능</span></div>
+    <div class="vc-body"><div class="spread"><span class="pill ok">직영</span><span class="small muted">42석</span></div><h3>NextWave 연곡도서관</h3><p class="small muted">${LOC.addr}</p><p class="small">도면에서 자리를 골라 바로 예약</p></div></article>`;
+  return `<div class="head"><div><span class="eyebrow">PARTNER SPACES</span><h2>업장 찾기</h2><p>NextWave에 등록된 스터디카페·공유오피스를 둘러보세요. 업장을 운영하신다면 <a href="#" data-act="nav" data-v="partner">업장 등록</a>에서 소개할 수 있습니다.</p></div></div>
+  <div class="stack">
+    <div class="map-box" id="vmap-slot" style="min-height:300px"></div>
+    <div class="radio-row" role="group" aria-label="업장 종류">${[['all','전체'],...Object.entries(VCAT)].map(([k,l])=>`<label><input type="radio" name="vcat" id="vcat-${k}" value="${k}" data-live="1" data-change="vcat" ${S.vcat===k?'checked':''}>${l}</label>`).join('')}</div>
+    ${R.vErr.public?`<div class="notice-bar bad">${esc(R.vErr.public)}</div>`:''}
+    <div class="vgrid">${S.vcat==='all'||S.vcat==='study_cafe'?home:''}${list.map(venueCard).join('')}</div>
+    ${R.vLoaded.public&&!list.length?`<p class="small muted">${S.vcat==='all'?'아직 승인된 파트너 업장이 없습니다.':'이 종류의 업장이 아직 없습니다.'}</p>`:''}
+  </div>`;
+}
+function venueDetail(v){
+  const ph=v.photos||[];
+  return `<div class="body">${ph.length?`<div class="gallery">${ph.map((p,i)=>`<img src="${purl(p.path)}" alt="${esc(v.name)} 사진 ${i+1}" loading="lazy">`).join('')}</div>`:''}
+    <div class="spread"><span class="pill">${VCAT[v.category]||'기타'}</span>${v.status!=='approved'?`<span class="pill ${VSTAT[v.status][1]}">${VSTAT[v.status][0]}</span>`:''}</div>
+    ${v.description?`<p style="white-space:pre-line">${esc(v.description)}</p>`:''}
+    <dl class="kv"><dt>주소</dt><dd>${esc(v.address)}</dd>${v.hours?`<dt>운영 시간</dt><dd>${esc(v.hours)}</dd>`:''}${v.seat_count?`<dt>좌석</dt><dd>${v.seat_count}석</dd>`:''}${v.price_note?`<dt>요금</dt><dd>${esc(v.price_note)}</dd>`:''}${v.phone?`<dt>전화</dt><dd class="num" style="user-select:all">${esc(v.phone)}</dd>`:''}</dl>
+    ${(v.amenities||[]).length?`<div class="row">${v.amenities.map(a=>`<span class="pill">${esc(a)}</span>`).join('')}</div>`:''}
+    <div class="row"><a class="btn sm" href="${mapLink(v)}" target="_blank" rel="noopener">네이버 지도에서 보기 ↗</a></div>
+    <p class="small muted">이 업장의 좌석 예약은 업장에 직접 문의해 주세요. 앱 예약은 현재 NextWave 직영점만 지원합니다.</p></div>`;
+}
+RMODAL.venue=(shell)=>{const id=S.modal.id,v=[...R.venues.public,...R.venues.mine,...R.venues.admin].find(x=>x.id===id);return v?shell(esc(v.name),venueDetail(v),'',true):'';};
+
+/* 사장님: 내 업장 */
+function vPartner(){
+  const head=`<div class="head"><div><span class="eyebrow">FOR PARTNERS</span><h2>업장 등록</h2><p>스터디카페·공유오피스를 운영하신다면 사진과 정보를 올려 NextWave에 소개하세요. 관리자 심사 후 업장 찾기에 공개됩니다.</p></div>${R.on&&ME()&&!S.vform?'<button class="btn pri" data-act="vnewform">새 업장 등록</button>':''}</div>`;
+  if(!R.on)return head+needDb();
+  const me=ME();if(!me)return head+needLogin('업장을 등록하려면 로그인하세요. 처음이면 회원가입부터 해 주세요.');
+  if(!R.vLoaded.mine)vLoad('mine');
+  if(S.vform)return head+partnerForm();
+  const mine=R.venues.mine;
+  return head+(mine.length?`<div class="vgrid">${mine.map(v=>`<div class="panel stack" style="gap:10px">
+    <div class="vc-img" style="border-radius:6px">${v.photos[0]?`<img src="${purl(v.photos[0].path)}" alt="">`:'<div class="vc-noimg">사진 없음</div>'}</div>
+    <div class="spread"><h3 style="margin:0">${esc(v.name)}</h3><span class="pill ${VSTAT[v.status][1]}">${VSTAT[v.status][0]}</span></div>
+    <p class="small muted">${esc(v.address)} · 사진 ${v.photos.length}장</p>
+    ${v.status==='rejected'&&v.review_note?`<div class="notice-bar bad"><span><b>반려 사유</b> ${esc(v.review_note)}</span></div>`:''}
+    ${v.status==='pending'?'<p class="small muted">관리자가 확인하고 있어요. 승인되면 업장 찾기에 공개됩니다.</p>':''}
+    <div class="row"><button class="btn sm" data-act="vopen" data-id="${v.id}">미리 보기</button><button class="btn sm" data-act="vedit" data-id="${v.id}">수정</button>
+    ${S.vconfirm===v.id?`<button class="btn sm warn" data-act="vdel" data-id="${v.id}">정말 삭제</button><button class="btn sm" data-act="vdelno">취소</button>`:`<button class="btn sm warn" data-act="vdelask" data-id="${v.id}">삭제</button>`}</div></div>`).join('')}</div>`
+    :`<div class="empty-box">${R.vLoaded.mine?'아직 등록한 업장이 없습니다. <b>새 업장 등록</b>을 눌러 시작하세요.':'불러오는 중…'}</div>`);
+}
+function partnerForm(){
+  const v=S.vedit?R.venues.mine.find(x=>x.id===S.vedit)||{}:{},e=S.errs,er=k=>e[k]?`<span class="err">${e[k]}</span>`:'';
+  const old=v.photos||[],total=old.length+S.vnew.length;
+  return `<form class="stack" data-form="partner" novalidate>
+  ${v.status==='approved'?'<div class="notice-bar">공개 중인 업장을 고치면 다시 심사를 받습니다. 심사가 끝날 때까지 업장 찾기에서 잠시 내려갑니다.</div>':''}
+  <div class="split"><div class="panel stack" style="gap:12px"><h3 style="margin:0">기본 정보</h3>
+    <div class="grid2"><div class="field"><label for="pv-name">업장 이름</label><input class="in ${e.name?'bad':''}" id="pv-name" maxlength="40" value="${esc(v.name||'')}" placeholder="예: 집중 스터디카페 안양점">${er('name')}</div>
+    <div class="field"><label for="pv-cat">종류</label><select class="in" id="pv-cat">${Object.entries(VCAT).map(([k,l])=>`<option value="${k}" ${v.category===k?'selected':''}>${l}</option>`).join('')}</select></div></div>
+    <div class="field"><label for="pv-addr">주소</label><div class="verify"><input class="in ${e.address?'bad':''}" id="pv-addr" maxlength="120" value="${esc(v.address||'')}" placeholder="도로명 주소"><button class="btn" type="button" data-act="vgeo">위치 찾기</button></div>${er('address')||'<span class="hint">위치 찾기를 누르거나 아래 지도에서 핀을 끌어 정확한 위치를 맞추세요.</span>'}</div>
+    <div class="map-box" id="pmap-slot" style="min-height:220px"></div>
+    <div class="grid2"><div class="field"><label for="pv-phone">전화번호</label><input class="in ${e.phone?'bad':''}" id="pv-phone" data-phone="1" inputmode="numeric" value="${esc(v.phone||'')}" placeholder="031-123-4567">${er('phone')}</div>
+    <div class="field"><label for="pv-seats">좌석 수</label><input class="in ${e.seats?'bad':''}" id="pv-seats" inputmode="numeric" value="${v.seat_count||''}" placeholder="예: 60">${er('seats')}</div></div>
+    <div class="field"><label for="pv-hours">운영 시간</label><input class="in" id="pv-hours" maxlength="80" value="${esc(v.hours||'')}" placeholder="예: 매일 07:00–24:00"></div>
+    <div class="field"><label for="pv-price">요금 안내</label><input class="in" id="pv-price" maxlength="200" value="${esc(v.price_note||'')}" placeholder="예: 2시간 3,500원 · 4주 정기권 140,000원"></div>
+    <div class="field"><label for="pv-desc">소개</label><textarea class="in" id="pv-desc" maxlength="1000" placeholder="공간의 분위기, 좌석 구성, 자랑할 점을 적어 주세요.">${esc(v.description||'')}</textarea><span class="hint">1000자 이내</span></div>
+    <div class="field"><label>편의시설</label><div class="radio-row">${VAMEN.map((a,i)=>`<label><input type="checkbox" id="pv-am-${i}" data-amen="1" value="${a}" ${(v.amenities||[]).includes(a)?'checked':''}>${a}</label>`).join('')}</div></div></div>
+  <div class="panel stack" style="gap:12px"><h3 style="margin:0">사진 <span class="small muted">${total}/8</span></h3>
+    <p class="small muted">첫 번째 사진이 대표 사진으로 보여요. 큰 사진은 자동으로 줄여서 올립니다.</p>
+    <div class="thumbs">${old.map(p=>`<div class="thumb"><img src="${purl(p.path)}" alt=""><button type="button" class="x-thumb" data-act="vdelphoto" data-id="${p.id}" data-path="${esc(p.path)}" aria-label="사진 삭제">×</button></div>`).join('')}
+      ${S.vnew.map((p,i)=>`<div class="thumb new"><img src="${p.url}" alt=""><button type="button" class="x-thumb" data-act="vdropnew" data-i="${i}" aria-label="올릴 사진 빼기">×</button></div>`).join('')}
+      ${total<8?`<label class="thumb add" for="pv-files">+ 사진 추가</label>`:''}</div>
+    <input type="file" id="pv-files" accept="image/jpeg,image/png,image/webp" multiple data-change="vfiles" hidden>
+    ${er('photos')}
+    <div class="row"><button class="btn pri" type="submit" ${S.vsaving?'disabled':''}>${S.vsaving?'저장하는 중…':S.vedit?'수정하고 심사 요청':'등록하고 심사 요청'}</button><button class="btn" type="button" data-act="vcancel">취소</button></div></div></div>
+  </form>`;
+}
+function compressImage(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{const sc=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);let q=.82;
+    const out=()=>c.toBlob(b=>{if(!b)return rej(new Error('사진을 변환하지 못했습니다.'));if(b.size>1900000&&q>.4){q-=.12;out();}else res(b);},'image/jpeg',q);out();};
+  img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error(`${file.name}을(를) 읽지 못했습니다. JPG·PNG 사진을 골라 주세요.`));};img.src=u;});}
+
+/* 관리자: 업장 심사 */
+function vAVenues(){
+  const head=`<div class="head"><div><h2>업장 심사</h2><p>사장님이 올린 업장을 확인하고 공개 여부를 정합니다. 반려할 때는 사유를 적어 주세요. 사장님 화면에 그대로 보입니다.</p></div></div>`;
+  if(!R.on)return head+needDb();
+  if(!R.vLoaded.admin)vLoad('admin');
+  const all=R.venues.admin,list=all.filter(v=>v.status===S.vfilter);
+  const tabs=Object.entries(VSTAT).map(([k,[l]])=>`<button class="${S.vfilter===k?'on':''}" data-act="vfilter" data-v="${k}">${l} ${all.filter(v=>v.status===k).length}</button>`).join('');
+  return head+`<div class="tabs">${tabs}</div>${R.vErr.admin?`<div class="notice-bar bad">${esc(R.vErr.admin)}</div>`:''}
+  ${list.length?`<div class="stack">${list.map(v=>`<div class="panel stack" style="gap:12px">
+    <div class="spread"><div><h3 style="margin:0">${esc(v.name)}</h3><span class="small muted">${VCAT[v.category]} · ${esc(v.address)} · 등록 ${fmtTs(new Date(v.created_at).getTime())}${v.updated_at!==v.created_at?` · 수정 ${fmtTs(new Date(v.updated_at).getTime())}`:''}</span></div><span class="pill ${VSTAT[v.status][1]}">${VSTAT[v.status][0]}</span></div>
+    ${v.photos.length?`<div class="thumbs">${v.photos.map(p=>`<a class="thumb" href="${purl(p.path)}" target="_blank" rel="noopener"><img src="${purl(p.path)}" alt=""></a>`).join('')}</div>`:'<p class="small" style="color:var(--bad)">사진이 없습니다.</p>'}
+    <dl class="kv">${v.hours?`<dt>운영 시간</dt><dd>${esc(v.hours)}</dd>`:''}${v.seat_count?`<dt>좌석</dt><dd>${v.seat_count}석</dd>`:''}${v.price_note?`<dt>요금</dt><dd>${esc(v.price_note)}</dd>`:''}${v.phone?`<dt>전화</dt><dd>${esc(v.phone)}</dd>`:''}<dt>지도 위치</dt><dd>${v.lat?`${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}`:'<span style="color:var(--warn)">미지정</span>'}</dd></dl>
+    ${v.description?`<p class="small" style="white-space:pre-line">${esc(v.description)}</p>`:''}
+    <div class="field"><label for="vr-${v.id}">심사 메모 (반려 사유)</label><input class="in" id="vr-${v.id}" maxlength="300" value="${esc(v.review_note||'')}" placeholder="예: 대표 사진이 흐립니다. 매장 내부 사진으로 바꿔 주세요."></div>
+    <div class="row">${v.status!=='approved'?`<button class="btn sm pri" data-act="vreview" data-id="${v.id}" data-s="approved">승인 · 공개</button>`:''}${v.status!=='rejected'?`<button class="btn sm warn" data-act="vreview" data-id="${v.id}" data-s="rejected">반려</button>`:''}${v.status!=='hidden'?`<button class="btn sm" data-act="vreview" data-id="${v.id}" data-s="hidden">숨김</button>`:''}<a class="btn sm" href="${mapLink(v)}" target="_blank" rel="noopener">지도 확인 ↗</a></div></div>`).join('')}</div>`
+  :`<div class="empty-box">${R.vLoaded.admin?`${VSTAT[S.vfilter][0]} 상태의 업장이 없습니다.`:'불러오는 중…'}</div>`}`;
+}
+
+/* 동작 */
+Object.assign(RACT,{
+  vopen:t=>{S.modal={type:'venue',id:t.dataset.id};render();},
+  vnewform:()=>{S.vform=true;S.vedit=null;S.vnew=[];S.vpos=null;S.errs={};fresh=true;render();},
+  vedit:t=>{const v=R.venues.mine.find(x=>x.id===t.dataset.id);S.vform=true;S.vedit=t.dataset.id;S.vnew=[];S.vpos=v&&v.lat?{lat:v.lat,lng:v.lng}:null;S.errs={};fresh=true;render();window.scrollTo({top:0});},
+  vcancel:()=>{S.vnew.forEach(p=>URL.revokeObjectURL(p.url));S.vform=false;S.vedit=null;S.vnew=[];S.vpos=null;S.errs={};fresh=true;render();},
+  vdropnew:t=>{const p=S.vnew.splice(+t.dataset.i,1)[0];if(p)URL.revokeObjectURL(p.url);render();},
+  vdelphoto:async t=>{try{await sb.storage.from('venue-photos').remove([t.dataset.path]);const {error}=await sb.from('nw_venue_photos').delete().eq('id',t.dataset.id);if(error)throw error;await vLoad('mine');toast('사진을 지웠습니다.');}catch(e){toast(errMsg(e));}},
+  vdelask:t=>{S.vconfirm=t.dataset.id;render();},vdelno:()=>{S.vconfirm=null;render();},
+  vdel:async t=>{const v=R.venues.mine.find(x=>x.id===t.dataset.id);if(!v)return;
+    try{if(v.photos.length)await sb.storage.from('venue-photos').remove(v.photos.map(p=>p.path));const {error}=await sb.from('nw_venues').delete().eq('id',v.id);if(error)throw error;S.vconfirm=null;await vLoad('mine');R.vLoaded.public=false;toast('업장을 삭제했습니다.');}catch(e){toast(errMsg(e));}},
+  vgeo:async()=>{const a=val('pv-addr');if(a.length<5){S.errs={address:'주소를 먼저 입력하세요.'};render();return;}
+    try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&accept-language=ko&q='+encodeURIComponent(a));const d=await r.json();
+      if(!d.length)throw new Error('none');S.vpos={lat:+d[0].lat,lng:+d[0].lon};S.errs={};render();toast('위치를 찾았습니다. 핀 위치가 맞는지 지도에서 확인하세요.');}
+    catch(e){toast('주소로 위치를 찾지 못했습니다. 지도에서 핀을 직접 끌어 옮겨 주세요.');}},
+  vfilter:t=>{S.vfilter=t.dataset.v;render();},
+  vreview:async t=>{const id=t.dataset.id,st=t.dataset.s,note=val('vr-'+id);
+    if(st==='rejected'&&note.length<2){toast('반려 사유를 적어 주세요. 사장님 화면에 보입니다.');document.getElementById('vr-'+id)?.focus();return;}
+    try{const {error}=await sb.from('nw_venues').update({status:st,review_note:note||null}).eq('id',id);if(error)throw error;
+      await vLoad('admin');R.vLoaded.public=false;toast(st==='approved'?'승인했습니다. 업장 찾기에 공개됩니다.':st==='rejected'?'반려했습니다.':'숨김 처리했습니다.');}catch(e){toast(errMsg(e));}}
+});
+CHANGE.vcat=t=>{S.vcat=t.value;render();};
+CHANGE.vfiles=async t=>{const files=[...(t.files||[])];t.value='';
+  const v=S.vedit?R.venues.mine.find(x=>x.id===S.vedit):null,room=8-((v&&v.photos.length)||0)-S.vnew.length;
+  if(files.length>room)toast(`사진은 8장까지예요. 앞의 ${Math.max(room,0)}장만 추가합니다.`);
+  for(const f of files.slice(0,Math.max(room,0))){try{const b=await compressImage(f);S.vnew.push({blob:b,url:URL.createObjectURL(b)});}catch(e){toast(errMsg(e));}}
+  render();};
+RFORM.partner=async function(){
+  const me=ME(),e={},seats=val('pv-seats'),phone=val('pv-phone');
+  const v={name:val('pv-name'),category:val('pv-cat'),address:val('pv-addr'),phone:phone||null,hours:val('pv-hours')||null,seat_count:seats?Number(seats):null,
+    price_note:val('pv-price')||null,description:(document.getElementById('pv-desc')?.value||'').trim()||null,
+    amenities:[...document.querySelectorAll('[data-amen]:checked')].map(x=>x.value),lat:S.vpos?S.vpos.lat:null,lng:S.vpos?S.vpos.lng:null};
+  if(v.name.length<2)e.name='업장 이름을 2자 이상 입력하세요.';
+  if(v.address.length<5)e.address='주소를 5자 이상 입력하세요.';
+  if(phone&&!/^0\d{1,2}-\d{3,4}-\d{4}$/.test(phone))e.phone='031-123-4567 형식으로 입력하세요.';
+  if(seats&&(!Number.isInteger(v.seat_count)||v.seat_count<1||v.seat_count>1000))e.seats='1~1000 사이 숫자만 입력하세요.';
+  const old=S.vedit?(R.venues.mine.find(x=>x.id===S.vedit)||{photos:[]}).photos:[];
+  if(!old.length&&!S.vnew.length)e.photos='사진을 1장 이상 올려 주세요. 손님이 가장 먼저 보는 부분이에요.';
+  if(v.lat!=null&&(v.lat<33||v.lat>39||v.lng<124||v.lng>132)){v.lat=null;v.lng=null;}
+  S.errs=e;if(Object.keys(e).length){render();toast('빨간 칸을 확인해 주세요.');return;}
+  S.vsaving=true;render();
+  try{
+    let id=S.vedit;
+    if(id){const {error}=await sb.from('nw_venues').update(v).eq('id',id);if(error)throw error;}
+    else{const {data,error}=await sb.from('nw_venues').insert(v).select('id').single();if(error)throw error;id=data.id;S.vedit=id;}
+    let order=old.length?Math.max(...old.map(p=>p.sort_order))+1:0;
+    while(S.vnew.length){const p=S.vnew[0],path=`${me.id}/${id}/${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}.jpg`;
+      const up=await sb.storage.from('venue-photos').upload(path,p.blob,{contentType:'image/jpeg',upsert:false});if(up.error)throw up.error;
+      const ins=await sb.from('nw_venue_photos').insert({venue_id:id,path,sort_order:order++});if(ins.error)throw ins.error;
+      URL.revokeObjectURL(p.url);S.vnew.shift();}
+    S.vform=false;S.vedit=null;S.vpos=null;S.errs={};fresh=true;await vLoad('mine');R.vLoaded.public=false;
+    toast('저장했습니다. 관리자 심사가 끝나면 업장 찾기에 공개됩니다.');
+  }catch(err){toast(errMsg(err));}
+  finally{S.vsaving=false;render();}
+};
+
+/* 업장 지도들 (렌더할 때마다 다시 만들지 않도록 노드를 유지) */
+let vmapNode=null,vmap=null,vlayer=null,vmapDrawn=-1,pmapNode=null,pmap=null,pmarker=null;
+function mountVMap(){
+  const slot=document.getElementById('vmap-slot');if(!slot||!window.L)return;
+  if(!vmapNode){vmapNode=document.createElement('div');vmapNode.style.cssText='position:absolute;inset:0';slot.appendChild(vmapNode);
+    vmap=L.map(vmapNode,{scrollWheelZoom:false}).setView([LOC.lat,LOC.lng],12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(vmap);vlayer=L.layerGroup().addTo(vmap);}
+  else slot.appendChild(vmapNode);
+  if(vmapDrawn!==(R.vmapVer||0)){vmapDrawn=R.vmapVer||0;vlayer.clearLayers();const pts=[[LOC.lat,LOC.lng]];
+    L.marker([LOC.lat,LOC.lng],{icon:L.divIcon({className:'nw-pin',html:'<span></span>',iconSize:[32,32],iconAnchor:[16,30]}),title:'NextWave 연곡도서관'}).addTo(vlayer).on('click',()=>go('book'));
+    R.venues.public.filter(v=>v.lat&&v.lng).forEach(v=>{pts.push([v.lat,v.lng]);L.marker([v.lat,v.lng],{icon:L.divIcon({className:'nw-pin partner',html:'<span></span>',iconSize:[32,32],iconAnchor:[16,30]}),title:v.name}).addTo(vlayer).on('click',()=>{S.modal={type:'venue',id:v.id};render();});});
+    if(pts.length>1)vmap.fitBounds(pts,{padding:[30,30],maxZoom:15});}
+  setTimeout(()=>vmap.invalidateSize(),0);
+}
+function mountPMap(){
+  const slot=document.getElementById('pmap-slot');
+  if(!slot){if(pmapNode&&!document.body.contains(pmapNode)){/* 양식을 닫으면 다음에 새로 만듦 */pmap.remove();pmapNode=null;pmap=null;pmarker=null;}return;}
+  if(!window.L)return;
+  if(!pmapNode){pmapNode=document.createElement('div');pmapNode.style.cssText='position:absolute;inset:0';slot.appendChild(pmapNode);
+    const at=S.vpos||{lat:LOC.lat,lng:LOC.lng};pmap=L.map(pmapNode,{scrollWheelZoom:false}).setView([at.lat,at.lng],S.vpos?17:13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(pmap);
+    pmarker=L.marker([at.lat,at.lng],{draggable:true,icon:L.divIcon({className:'nw-pin partner',html:'<span></span>',iconSize:[32,32],iconAnchor:[16,30]})}).addTo(pmap);
+    pmarker.on('dragend',()=>{const p=pmarker.getLatLng();S.vpos={lat:p.lat,lng:p.lng};});
+    pmap.on('click',ev=>{pmarker.setLatLng(ev.latlng);S.vpos={lat:ev.latlng.lat,lng:ev.latlng.lng};});}
+  else slot.appendChild(pmapNode);
+  if(S.vpos){const cur=pmarker.getLatLng();if(Math.abs(cur.lat-S.vpos.lat)>1e-7||Math.abs(cur.lng-S.vpos.lng)>1e-7){pmarker.setLatLng([S.vpos.lat,S.vpos.lng]);pmap.setView([S.vpos.lat,S.vpos.lng],17);}}
+  setTimeout(()=>pmap.invalidateSize(),0);
+}
 
 /* ===== 시작 ===== */
 async function init(){
