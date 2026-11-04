@@ -730,7 +730,8 @@ function vBook(){
     <div class="ctrl">
       <div class="field" style="min-width:0;max-width:100%"><label>이용 날짜</label><div class="days">${days.map(d=>{const dt=new Date(d+'T00:00:00');return `<button class="day ${d===b.date?'on':''}" data-act="bday" data-v="${d}"><small>${d===today()?'오늘':DOW[dt.getDay()]}</small>${dt.getMonth()+1}/${dt.getDate()}</button>`;}).join('')}</div></div>
       ${opts.length?`<div class="field"><label for="b-start">시작 시간</label><select class="in" id="b-start" data-live="1" data-change="bstart">${opts.map(m=>`<option value="${m}" ${m===b.start?'selected':''}>${hm(m)}</option>`).join('')}</select></div>
-      <div class="field"><label for="b-dur">이용 시간</label><select class="in" id="b-dur" data-live="1" data-change="bdur">${durs.map(m=>`<option value="${m}" ${m===b.dur?'selected':''}>${durLabel(m)} (~${hm(b.start+m)})</option>`).join('')}</select></div>`
+      <div class="field"><label for="b-dur">이용 시간</label><select class="in" id="b-dur" data-live="1" data-change="bdur">${durs.map(m=>`<option value="${m}" ${m===b.dur?'selected':''}>${durLabel(m)} (~${hm(b.start+m)}) · ${won(freePrice(m))}</option>`).join('')}</select></div>
+      <div class="field"><label>예상 요금</label><div class="price" id="b-price">${won(b.seat?priceFor(b.seat,b.dur):freePrice(b.dur))}</div></div>`
       :`<div class="notice-bar">오늘 예약 가능한 시간이 지났습니다. 다른 날짜를 골라 주세요. (운영 ${hm(st.open)}–${hm(st.close)})</div>`}
     </div>
     ${R.on?`<div class="notice-bar ${R.availErr?'bad':'info'}" style="margin-bottom:10px">${R.availErr?esc(R.availErr):R.availBusy?'팀 DB에서 좌석 현황을 불러오는 중…':'팀 DB 실시간 좌석 현황 · 5초마다 갱신'}</div>`:''}<div class="map-wrap">${mapSVG({date:b.date,s,e,sel:b.seat})}</div>${LEGEND}
@@ -742,7 +743,7 @@ function bookPanel(s,e){
   const summary=`<div class="spread"><span class="muted small">${fmtDate(b.date)} ${hm(s)}–${hm(e)}</span><span class="pill">${durLabel(b.dur)}</span></div>`;
   if(!b.seat){
     const zs=ZKEYS.map(z=>{const all=zoneSeats(z),f=all.filter(x=>seatInfo(x,b.date,s,e).st==='free').length;return `<div class="spread small"><span>${ZONES[z].label}</span><span class="num">${f} / ${all.length}</span></div>`;}).join('');
-    return `<div class="panel stack" style="gap:12px">${summary}<h3 style="margin:0">자리를 선택하세요</h3><p class="small muted">도면에서 흰색 자리를 누르면 요금과 예약 버튼이 나옵니다.</p><div class="stack" style="gap:6px">${zs}</div></div>`;
+    return `<div class="panel stack" style="gap:12px">${summary}<div class="spread"><span class="muted">${durLabel(b.dur)} 요금</span><span class="price">${won(freePrice(b.dur))}</span></div><h3 style="margin:0">자리를 선택하세요</h3><p class="small muted">도면에서 흰색 자리를 누르면 예약 버튼이 나옵니다.</p><div class="stack" style="gap:6px">${zs}</div></div>`;
   }
   const seat=SEAT[b.seat],z=ZONES[seat.zone],info=seatInfo(seat,b.date,s,e);
   let body='';
@@ -801,9 +802,9 @@ function vPasses(){
   <div class="plans">
     <div class="panel plan"><div><div class="eyebrow">TIME PASS</div><h3>시간권</h3></div><ul class="benefit"><li>예약할 때 이용 시간만큼 차감</li><li>유효기간 안에 나눠서 사용</li><li>취소 시 환불 규정에 따라 시간 복원</li></ul><div class="opts">${P.hours.map((r,i)=>opt('hours',i,`${r.h}시간`,r.p,`${r.days}일 유효 · 시간당 ${won(r.p/r.h)}`)).join('')}</div></div>
     <div class="panel plan"><div><div class="eyebrow">FLEX MEMBERSHIP</div><h3>자유석 멤버십</h3></div><ul class="benefit"><li>기간 내 A·B·C·D 좌석 예약 0원</li><li>매일 원하는 자리를 골라 예약</li><li>오늘부터 시작</li></ul><div class="opts">${P.period.map((r,i)=>opt('period',i,`${r.w}주`,r.p,`하루 ${won(r.p/(r.w*7))} 꼴`)).join('')}</div></div>
-    <div class="panel plan"><div><div class="eyebrow">TEAM MEMBERSHIP</div><h3>팀 멤버십</h3></div><ul class="benefit"><li>프로젝트룸 1개(4석) 팀 전용</li><li>팀원 3명까지 이메일로 초대</li><li>${P.team[0].d}일 · 1인 환산 ${won(P.team[0].p/4)}</li></ul>
+    <div class="panel plan"><div><div class="eyebrow">TEAM MEMBERSHIP</div><h3>팀 멤버십</h3></div><ul class="benefit"><li>프로젝트룸 1개(4석) 팀 전용</li><li>결제자 포함 4명까지 · 팀원 3명 이메일로 초대</li><li>${P.team[0].d}일 · 1인 환산 ${won(P.team[0].p/4)}</li></ul>
       <div class="field"><label for="tm-room">프로젝트룸</label><select class="in" id="tm-room">${rooms.length?rooms.map(r=>`<option value="${r}">PROJECT ROOM 0${r}</option>`).join(''):'<option value="">남은 룸 없음</option>'}</select></div>
-      <div class="field"><label for="tm-mem">팀원 이메일 (쉼표로 구분, 최대 3명)</label><input class="in" id="tm-mem" placeholder="a@school.ac.kr, b@school.ac.kr"></div>
+      <div class="field"><label for="tm-mem">함께 쓸 팀원 이메일 (쉼표로 구분, 최대 3명)</label><input class="in" id="tm-mem" placeholder="a@school.ac.kr, b@school.ac.kr"><span class="hint">결제자${me?` (${esc(me.loginId)})`:''}는 자동으로 포함되어 4명까지 함께 씁니다.</span></div>
       <div class="opts">${P.team.map((r,i)=>opt('team',i,`4인 ${r.d}일`,r.p)).join('')}</div></div>
     <div class="panel plan"><div><div class="eyebrow">LOCKER</div><h3>사물함</h3></div><ul class="benefit"><li>번호는 구매 시 자동 배정</li><li>사물함 40칸 (복도 쪽)</li></ul><div class="opts">${P.locker.map((r,i)=>opt('locker',i,`${r.w}주`,r.p)).join('')}</div></div>
   </div>`;
@@ -811,9 +812,11 @@ function vPasses(){
 function freeRooms(days){const end=addDays(today(),days-1),t=today();
   return ROOMS.filter(r=>!Object.values(D.passes).some(p=>p.kind==='team'&&p.status==='active'&&p.room===r&&p.startDate<=end&&p.endDate>=t)
     &&!roomSeats(r).some(s=>{const ov=D.seatStatus[s.id];return ov&&ov.status==='broken';}));}
+/* 팀 인원은 결제자를 포함해 센다 */
+function teamText(p){const m=(p.members||[]).filter(x=>x!==(p.email||'').toLowerCase());return `팀원 ${m.length+1}/4명: ${esc(p.email||p.name||p.owner||'결제자')} (결제자)${m.length?', '+esc(m.join(', ')):''}`;}
 function passCard(p){
   const lab={hours:'시간권',period:'자유석 멤버십',team:'팀 멤버십',locker:'사물함'}[p.kind];
-  const detail=p.kind==='hours'?`잔여 <b class="num">${p.hoursLeft}</b> / ${p.hoursTotal}시간`:p.kind==='team'?`PROJECT ROOM 0${p.room} · 팀원 ${esc((p.members||[]).join(', ')||'없음')}`:p.kind==='locker'?`사물함 <b class="num">${p.lockerNo}번</b>`:'좌석 예약 0원';
+  const detail=p.kind==='hours'?`잔여 <b class="num">${p.hoursLeft}</b> / ${p.hoursTotal}시간`:p.kind==='team'?`PROJECT ROOM 0${p.room} · ${teamText(p)}`:p.kind==='locker'?`사물함 <b class="num">${p.lockerNo}번</b>`:'좌석 예약 0원';
   return `<div class="panel rcard" style="padding:14px"><div class="top-line"><b>${lab} ${esc(p.label)}</b><span class="pill ok">사용 중</span></div><div class="small">${detail}</div><div class="small muted">${p.startDate} ~ ${p.endDate}</div></div>`;
 }
 /* 같은 종류 멤버십을 이미 쓰고 있으면 중복 결제를 막는다 (시간권은 충전형이라 제외) */
@@ -828,8 +831,8 @@ function buyPass(k,i){
   if(k==='period'){item=P.period[i];pass={kind:'period',label:`${item.w}주`,startDate:t,endDate:addDays(t,item.w*7-1)};}
   if(k==='team'){item=P.team[i];const room=+val('tm-room');
     if(!room||!freeRooms(item.d).includes(room)){toast('남은 프로젝트룸이 없습니다.');return;}
-    const mem=val('tm-mem').split(/[,\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);
-    if(mem.length>3){toast('팀원은 본인 외 3명까지 초대할 수 있습니다.');return;}
+    const myMail=(me.loginId||'').toLowerCase(),mem=[...new Set(val('tm-mem').split(/[,\s]+/).map(x=>x.trim().toLowerCase()).filter(x=>x&&x!==myMail))];
+    if(mem.length>3){toast('결제자가 자동으로 포함되어 팀원은 3명까지 초대할 수 있습니다. (총 4명)');return;}
     const badMail=mem.find(x=>!EMAIL_RE.test(x));if(badMail){toast(`${badMail}는 이메일 형식이 아닙니다.`);return;}
     const end=addDays(t,item.d-1);
     if(resList().some(r=>ACTIVE(r)&&SEAT[r.seatId]?.room===room&&r.date>=t&&r.date<=end&&r.userId!==me.id)){toast(`ROOM 0${room}에 이미 다른 분의 예약이 있습니다. 다른 룸을 고르세요.`);return;}
@@ -839,7 +842,7 @@ function buyPass(k,i){
     pass={kind:'locker',label:`${item.w}주`,lockerNo:no,startDate:t,endDate:end};}
   const name={hours:'시간권',period:'자유석 멤버십',team:'팀 멤버십',locker:'사물함'}[k];
   const lines=[['상품',name+' '+pass.label],['이용 기간',`${pass.startDate} ~ ${pass.endDate}`]];
-  if(pass.members&&pass.members.length)lines.push(['팀원',pass.members.join(', ')]);if(pass.lockerNo)lines.push(['사물함',pass.lockerNo+'번']);
+  if(k==='team')lines.push([`팀원 ${pass.members.length+1}/4명`,[`${me.loginId} (결제자)`,...pass.members].join(', ')]);if(pass.lockerNo)lines.push(['사물함',pass.lockerNo+'번']);
   S.modal={type:'pay',title:'멤버십 결제',lines,amount:item.p,onPaid:async pm=>{
     await Store.put('passes',uid('p'),{...pass,userId:me.id,name:me.name,email:me.loginId,price:item.p,pay:pm,status:'active',createdAt:Date.now()});
     notify(me.id,'멤버십 구매 완료',`${lines[0][1]} · ${pass.startDate}~${pass.endDate}`);
@@ -862,7 +865,7 @@ function vMy(){
   ${tab==='now'?(now.length?`<div class="cards">${now.map(r=>{const canIn=r.status==='booked'&&r.date===t&&nowMin()>=r.start-10;return `<div class="panel rcard"><div class="top-line"><span class="eyebrow">${fmtDate(r.date)}</span>${resStatusPill(r)}</div><div class="big">${r.seatId} <span class="muted" style="font-size:15px">${ZONES[SEAT[r.seatId].zone].label}</span></div><div class="num">${hm(r.start)} – ${hm(r.end)} <span class="muted">(${durLabel(r.end-r.start)})</span></div><div class="small muted">${PM[r.pay]||r.pay} · ${won(r.price)} · 예약번호 <span class="mono">${r.code}</span></div><div class="row">${r.status==='pending'?'':`<button class="btn sm" data-act="showqr" data-id="${r.id}">QR 보기</button>`}<button class="btn sm" data-act="ics" data-id="${r.id}">캘린더에 추가</button>${r.status==='pending'?`<button class="btn sm warn" data-act="cancel" data-id="${r.id}">요청 취소</button><span class="small muted">운영자 승인 후 QR이 발급됩니다</span>`:r.status==='booked'?`<button class="btn sm ${canIn?'pri':''}" data-act="selfin" data-id="${r.id}" ${canIn?'':'disabled title="시작 10분 전부터 가능"'}>QR 체크인</button><button class="btn sm warn" data-act="cancel" data-id="${r.id}">예약 취소</button>`:`<button class="btn sm pri" data-act="checkout" data-id="${r.id}">퇴실 (QR 체크아웃)</button><button class="btn sm" data-act="nav" data-v="support">불편 신고</button>`}</div></div>`;}).join('')}</div>`:`<div class="empty-box">예정된 예약이 없습니다. <a href="#" data-act="nav" data-v="book">좌석 예약</a>에서 자리를 골라 보세요.</div>`):''}
   ${tab==='past'?(past.length?`<div class="tbl-wrap"><table><thead><tr><th>날짜</th><th>좌석</th><th>시간</th><th>상태</th><th class="r">결제</th><th class="r">환불</th><th></th></tr></thead><tbody>${past.map(r=>`<tr><td>${fmtDate(r.date)}</td><td class="mono">${r.seatId}</td><td class="num">${hm(r.start)}–${hm(r.end)}</td><td>${resStatusPill(r)}</td><td class="r num">${won(r.price)}</td><td class="r num">${r.refund?won(r.refund):r.refundHours?r.refundHours+'시간':'-'}</td><td><button class="btn sm" data-act="rebook" data-id="${r.id}">다시 예약</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-box">지난 내역이 없습니다.</div>`):''}
   ${tab==='wait'?(waits.length?`<div class="tbl-wrap"><table><thead><tr><th>날짜</th><th>구역</th><th>시간</th><th>상태</th><th></th></tr></thead><tbody>${waits.map(w=>`<tr><td>${fmtDate(w.date)}</td><td>${ZONES[w.zone]?.label||'전체 구역'}</td><td class="num">${hm(w.start)}–${hm(w.end)}</td><td>${w.status==='notified'?'<span class="pill ok">빈자리 생김</span>':'<span class="pill">대기중</span>'}</td><td>${w.status==='notified'?`<button class="btn sm pri" data-act="wbook" data-id="${w.id}">예약하러 가기</button>`:''} <button class="btn sm" data-act="wcancel" data-id="${w.id}">알림 해제</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-box">신청한 빈자리 알림이 없습니다. 만석인 시간에 자리를 누르면 신청할 수 있습니다.</div>`):''}
-  ${tab==='pass'?(()=>{const ps=myPasses(me.id),tp=R.on?(R.teamPasses||[]):[];return ps.length||tp.length?`<div class="cards">${ps.map(passCard).join('')}${tp.map(p=>`<div class="panel rcard" style="padding:14px"><div class="top-line"><b>팀 멤버십 ${esc(p.label||'')}</b><span class="pill info">팀원으로 참여</span></div><div class="small">PROJECT ROOM 0${esc(p.room)} · 팀장 ${esc(p.owner||'-')}</div><div class="small muted">${esc(p.startDate)} ~ ${esc(p.endDate)}</div></div>`).join('')}</div>`:`<div class="empty-box">보유한 이용권이 없습니다. <a href="#" data-act="nav" data-v="passes">이용권 보기</a></div>`;})():''}`;
+  ${tab==='pass'?(()=>{const ps=myPasses(me.id),tp=R.on?(R.teamPasses||[]):[];return ps.length||tp.length?`<div class="cards">${ps.map(passCard).join('')}${tp.map(p=>`<div class="panel rcard" style="padding:14px"><div class="top-line"><b>팀 멤버십 ${esc(p.label||'')}</b><span class="pill info">팀원으로 참여</span></div><div class="small">PROJECT ROOM 0${esc(p.room)} · ${teamText(p)}</div><div class="small muted">${esc(p.startDate)} ~ ${esc(p.endDate)}</div></div>`).join('')}</div>`:`<div class="empty-box">보유한 이용권이 없습니다. <a href="#" data-act="nav" data-v="passes">이용권 보기</a></div>`;})():''}`;
 }
 function needLogin(msg){return `<div class="panel" style="max-width:460px;margin:40px auto;text-align:center"><p style="margin-bottom:14px">${msg}</p><div class="row" style="justify-content:center"><button class="btn pri" data-act="login">로그인</button><button class="btn" data-act="signup">회원가입</button></div></div>`;}
 
@@ -1017,7 +1020,7 @@ function vAPasses(){
   const all=Object.values(D.passes).filter(p=>p.userId!=='other').sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const live=p=>p.status==='active'&&p.endDate>=t,on=all.filter(live),isToday=p=>p.createdAt&&ymd(new Date(p.createdAt))===t;
   const todays=all.filter(isToday),f=S.apf||'live',rows=f==='live'?on:all;
-  const detail=p=>p.kind==='hours'?`잔여 ${p.hoursLeft}/${p.hoursTotal}시간`:p.kind==='team'?`ROOM 0${p.room}${p.members&&p.members.length?` · 팀원 ${esc(p.members.join(', '))}`:''}`:p.kind==='locker'?`${p.lockerNo}번`:'좌석 예약 0원';
+  const detail=p=>p.kind==='hours'?`잔여 ${p.hoursLeft}/${p.hoursTotal}시간`:p.kind==='team'?`ROOM 0${p.room} · ${teamText(p)}`:p.kind==='locker'?`${p.lockerNo}번`:'좌석 예약 0원';
   return `<div class="head"><div><h2>멤버십</h2><p>회원이 구매한 멤버십입니다. 새로 구매하면 알림으로도 알려드립니다.</p></div></div>
   <div class="stack"><div class="kpis"><div class="kpi"><span>이용 중</span><b>${on.length}</b><small>전체 ${all.length}건</small></div><div class="kpi"><span>오늘 구매</span><b>${todays.length}</b><small>건</small></div><div class="kpi"><span>오늘 구매 금액</span><b>${todays.reduce((a,p)=>a+(p.price||0),0).toLocaleString('ko-KR')}</b><small>원 (시연 결제)</small></div></div>
   <div class="tabs"><button class="${f==='live'?'on':''}" data-act="apf" data-v="live">이용 중 ${on.length}</button><button class="${f==='all'?'on':''}" data-act="apf" data-v="all">전체 ${all.length}</button></div>
