@@ -558,7 +558,7 @@ const LOGO='<svg width="30" height="30" viewBox="0 0 30 30"><rect x="1" y="1" wi
 function myNotices(){const me=ME();if(!me)return [];if(R.on)return R.notices;const keys=[me.id];if(me.role==='admin')keys.push('@admin');return Object.values(D.notices).filter(n=>keys.includes(n.userId)).sort((a,b)=>b.createdAt-a.createdAt);}
 function header(){
   const me=ME(),st=SET(),admin=isAdmin()&&!S.asCustomer;
-  const items=admin?[['dash','대시보드'],['aseat','좌석 관리'],['walk','현장 접수'],['ares','예약 내역'],['avenues','업장 심사'],['acomp','민원·문의'],['ausers','회원'],['aset','설정']]
+  const items=admin?[['dash','대시보드'],['aseat','좌석 관리'],['walk','현장 접수'],['ares','예약 내역'],['apasses','멤버십'],['avenues','업장 심사'],['acomp','민원·문의'],['ausers','회원'],['aset','설정']]
     :[['home','홈'],['book','좌석 예약'],['venues','업장 찾기'],['passes','멤버십'],['my','내 예약'],['support','고객 지원'],['partner','업장 등록']];
   const cur=admin?S.atab:S.view;
   const nav=items.map(([k,l])=>`<button class="${cur===k?'on':''}" data-act="${admin?'atab':'nav'}" data-v="${k}">${l}</button>`).join('');
@@ -583,7 +583,7 @@ function footer(){return `<div class="mode-note wrap">${isDemoAdmin()&&MODE==='l
 function view(){
   if(R.on&&ME()){if(!R.compLoaded)rLoadComplaints();if(isAdmin())rEnsureAdmin(S.atab==='ares'?(S.rf.date||today()):today());}
   if(R.on&&isAdmin()&&!S.asCustomer&&RVIEW[S.atab])return RVIEW[S.atab]();
-  if(isAdmin()&&!S.asCustomer)return ({dash:vDash,avenues:vAVenues,aseat:vASeat,walk:vWalk,ares:vARes,acomp:vAComp,ausers:vAUsers,aset:vASet}[S.atab]||vDash)();
+  if(isAdmin()&&!S.asCustomer)return ({dash:vDash,avenues:vAVenues,aseat:vASeat,walk:vWalk,ares:vARes,apasses:vAPasses,acomp:vAComp,ausers:vAUsers,aset:vASet}[S.atab]||vDash)();
   return ({home:vHome,venues:vVenues,partner:vPartner,book:vBook,passes:vPasses,my:vMy,support:vSupport,mypage:vMyPage}[S.view]||vHome)();
 }
 
@@ -841,10 +841,10 @@ function buyPass(k,i){
   const lines=[['상품',name+' '+pass.label],['이용 기간',`${pass.startDate} ~ ${pass.endDate}`]];
   if(pass.members&&pass.members.length)lines.push(['팀원',pass.members.join(', ')]);if(pass.lockerNo)lines.push(['사물함',pass.lockerNo+'번']);
   S.modal={type:'pay',title:'멤버십 결제',lines,amount:item.p,onPaid:async pm=>{
-    await Store.put('passes',uid('p'),{...pass,userId:me.id,name:me.name,price:item.p,pay:pm,status:'active',createdAt:Date.now()});
+    await Store.put('passes',uid('p'),{...pass,userId:me.id,name:me.name,email:me.loginId,price:item.p,pay:pm,status:'active',createdAt:Date.now()});
     notify(me.id,'멤버십 구매 완료',`${lines[0][1]} · ${pass.startDate}~${pass.endDate}`);
     if(pass.members)pass.members.forEach(m=>{const u=Object.values(D.users).find(x=>x.loginId===m);if(u)notify(u.id,'팀 멤버십에 초대되었습니다',`${me.name}님의 팀으로 PROJECT ROOM 0${pass.room}을 ${pass.endDate}까지 함께 씁니다.`);});
-    toast('멤버십이 등록되었습니다.');return true;}};
+    toast(pass.members&&pass.members.length&&R.on?'멤버십이 등록되었습니다. 가입한 팀원에게는 바로, 아직 가입하지 않은 팀원에게는 가입 후 알림이 갑니다.':'멤버십이 등록되었습니다.');return true;}};
   render();
 }
 
@@ -862,7 +862,7 @@ function vMy(){
   ${tab==='now'?(now.length?`<div class="cards">${now.map(r=>{const canIn=r.status==='booked'&&r.date===t&&nowMin()>=r.start-10;return `<div class="panel rcard"><div class="top-line"><span class="eyebrow">${fmtDate(r.date)}</span>${resStatusPill(r)}</div><div class="big">${r.seatId} <span class="muted" style="font-size:15px">${ZONES[SEAT[r.seatId].zone].label}</span></div><div class="num">${hm(r.start)} – ${hm(r.end)} <span class="muted">(${durLabel(r.end-r.start)})</span></div><div class="small muted">${PM[r.pay]||r.pay} · ${won(r.price)} · 예약번호 <span class="mono">${r.code}</span></div><div class="row">${r.status==='pending'?'':`<button class="btn sm" data-act="showqr" data-id="${r.id}">QR 보기</button>`}<button class="btn sm" data-act="ics" data-id="${r.id}">캘린더에 추가</button>${r.status==='pending'?`<button class="btn sm warn" data-act="cancel" data-id="${r.id}">요청 취소</button><span class="small muted">운영자 승인 후 QR이 발급됩니다</span>`:r.status==='booked'?`<button class="btn sm ${canIn?'pri':''}" data-act="selfin" data-id="${r.id}" ${canIn?'':'disabled title="시작 10분 전부터 가능"'}>QR 체크인</button><button class="btn sm warn" data-act="cancel" data-id="${r.id}">예약 취소</button>`:`<button class="btn sm pri" data-act="checkout" data-id="${r.id}">퇴실 (QR 체크아웃)</button><button class="btn sm" data-act="nav" data-v="support">불편 신고</button>`}</div></div>`;}).join('')}</div>`:`<div class="empty-box">예정된 예약이 없습니다. <a href="#" data-act="nav" data-v="book">좌석 예약</a>에서 자리를 골라 보세요.</div>`):''}
   ${tab==='past'?(past.length?`<div class="tbl-wrap"><table><thead><tr><th>날짜</th><th>좌석</th><th>시간</th><th>상태</th><th class="r">결제</th><th class="r">환불</th><th></th></tr></thead><tbody>${past.map(r=>`<tr><td>${fmtDate(r.date)}</td><td class="mono">${r.seatId}</td><td class="num">${hm(r.start)}–${hm(r.end)}</td><td>${resStatusPill(r)}</td><td class="r num">${won(r.price)}</td><td class="r num">${r.refund?won(r.refund):r.refundHours?r.refundHours+'시간':'-'}</td><td><button class="btn sm" data-act="rebook" data-id="${r.id}">다시 예약</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-box">지난 내역이 없습니다.</div>`):''}
   ${tab==='wait'?(waits.length?`<div class="tbl-wrap"><table><thead><tr><th>날짜</th><th>구역</th><th>시간</th><th>상태</th><th></th></tr></thead><tbody>${waits.map(w=>`<tr><td>${fmtDate(w.date)}</td><td>${ZONES[w.zone]?.label||'전체 구역'}</td><td class="num">${hm(w.start)}–${hm(w.end)}</td><td>${w.status==='notified'?'<span class="pill ok">빈자리 생김</span>':'<span class="pill">대기중</span>'}</td><td>${w.status==='notified'?`<button class="btn sm pri" data-act="wbook" data-id="${w.id}">예약하러 가기</button>`:''} <button class="btn sm" data-act="wcancel" data-id="${w.id}">알림 해제</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-box">신청한 빈자리 알림이 없습니다. 만석인 시간에 자리를 누르면 신청할 수 있습니다.</div>`):''}
-  ${tab==='pass'?(()=>{const ps=myPasses(me.id);return ps.length?`<div class="cards">${ps.map(passCard).join('')}</div>`:`<div class="empty-box">보유한 이용권이 없습니다. <a href="#" data-act="nav" data-v="passes">이용권 보기</a></div>`;})():''}`;
+  ${tab==='pass'?(()=>{const ps=myPasses(me.id),tp=R.on?(R.teamPasses||[]):[];return ps.length||tp.length?`<div class="cards">${ps.map(passCard).join('')}${tp.map(p=>`<div class="panel rcard" style="padding:14px"><div class="top-line"><b>팀 멤버십 ${esc(p.label||'')}</b><span class="pill info">팀원으로 참여</span></div><div class="small">PROJECT ROOM 0${esc(p.room)} · 팀장 ${esc(p.owner||'-')}</div><div class="small muted">${esc(p.startDate)} ~ ${esc(p.endDate)}</div></div>`).join('')}</div>`:`<div class="empty-box">보유한 이용권이 없습니다. <a href="#" data-act="nav" data-v="passes">이용권 보기</a></div>`;})():''}`;
 }
 function needLogin(msg){return `<div class="panel" style="max-width:460px;margin:40px auto;text-align:center"><p style="margin-bottom:14px">${msg}</p><div class="row" style="justify-content:center"><button class="btn pri" data-act="login">로그인</button><button class="btn" data-act="signup">회원가입</button></div></div>`;}
 
@@ -1009,6 +1009,19 @@ function vARes(){
   <div class="row" style="margin-bottom:12px"><input type="date" class="in" id="rf-date" data-live="1" data-change="rfdate" value="${f.date}" style="width:auto"><button class="btn sm" data-act="rfall">전체 날짜</button>
   <select class="in" id="rf-st" data-live="1" data-change="rfst" style="width:auto">${[['all','전체 상태'],['pending','승인 대기'],['booked','체크인 대기'],['checkedin','이용중'],['done','이용 완료'],['cancelled','취소'],['noshow','노쇼']].map(([v,l])=>`<option value="${v}" ${f.status===v?'selected':''}>${l}</option>`).join('')}</select><span class="small muted">${rs.length}건</span><button class="btn sm" data-act="acsv" ${rs.length?'':'disabled'}>CSV 내려받기</button></div>
   ${rs.length?`<div class="tbl-wrap"><table><thead><tr><th>날짜</th><th>시간</th><th>좌석</th><th>예약자</th><th>경로</th><th>상태</th><th class="r">결제</th><th class="r">환불</th><th>번호</th><th></th></tr></thead><tbody>${rs.map(r=>`<tr><td>${fmtDate(r.date)}</td><td class="num">${hm(r.start)}–${hm(r.end)}</td><td class="mono">${r.seatId}</td><td>${esc(r.name)}<br><span class="small muted num">${esc(r.phone||'')}</span></td><td>${r.source==='walkin'?'<span class="pill">현장</span>':'<span class="pill info">앱</span>'}</td><td>${resStatusPill(r)}</td><td class="r num">${won(r.price)}<br><span class="small muted">${PM[r.pay]||''}</span></td><td class="r num">${r.status==='cancelled'?(r.refundHours?r.refundHours+'시간':won(r.refund||0))+`<br><span class="small muted">${Math.round((r.refundRatio||0)*100)}%</span>`:'-'}</td><td class="mono">${r.code}</td><td>${r.status==='pending'?`<button class="btn sm pri" data-act="ain" data-id="${r.id}">${r.timing==='on_site'||!R.on?'승인':'결제 확인'}</button> ${r.timing==='on_site'?`<button class="btn sm" data-act="adecline" data-id="${r.id}">반려</button> `:''}<button class="btn sm" data-act="areassign" data-id="${r.id}">좌석 변경</button> <button class="btn sm warn" data-act="cancel" data-id="${r.id}">취소</button>`:r.status==='booked'?`<button class="btn sm" data-act="ain" data-id="${r.id}">체크인</button> <button class="btn sm" data-act="areassign" data-id="${r.id}">좌석 변경</button> <button class="btn sm warn" data-act="cancel" data-id="${r.id}">취소</button>`:r.status==='checkedin'?`<button class="btn sm" data-act="checkout" data-id="${r.id}">퇴실</button> <button class="btn sm" data-act="areassign" data-id="${r.id}">좌석 변경</button>`:['cancelled','noshow','done'].includes(r.status)?`${r.refundStatus==='requested'?`<button class="btn sm pri" data-act="arefund" data-id="${r.id}">환불 완료</button> `:''}<button class="btn sm" data-act="adelres" data-id="${r.id}" title="이 예약 기록을 영구 삭제">기록 삭제</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-box">조건에 맞는 예약이 없습니다.</div>'}`;
+}
+
+/* ===== 관리자: 멤버십 구매 내역 ===== */
+function vAPasses(){
+  const t=today(),NM={hours:'시간권',period:'자유석 멤버십',team:'팀 멤버십',locker:'사물함'};
+  const all=Object.values(D.passes).filter(p=>p.userId!=='other').sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const live=p=>p.status==='active'&&p.endDate>=t,on=all.filter(live),isToday=p=>p.createdAt&&ymd(new Date(p.createdAt))===t;
+  const todays=all.filter(isToday),f=S.apf||'live',rows=f==='live'?on:all;
+  const detail=p=>p.kind==='hours'?`잔여 ${p.hoursLeft}/${p.hoursTotal}시간`:p.kind==='team'?`ROOM 0${p.room}${p.members&&p.members.length?` · 팀원 ${esc(p.members.join(', '))}`:''}`:p.kind==='locker'?`${p.lockerNo}번`:'좌석 예약 0원';
+  return `<div class="head"><div><h2>멤버십</h2><p>회원이 구매한 멤버십입니다. 새로 구매하면 알림으로도 알려드립니다.</p></div></div>
+  <div class="stack"><div class="kpis"><div class="kpi"><span>이용 중</span><b>${on.length}</b><small>전체 ${all.length}건</small></div><div class="kpi"><span>오늘 구매</span><b>${todays.length}</b><small>건</small></div><div class="kpi"><span>오늘 구매 금액</span><b>${todays.reduce((a,p)=>a+(p.price||0),0).toLocaleString('ko-KR')}</b><small>원 (시연 결제)</small></div></div>
+  <div class="tabs"><button class="${f==='live'?'on':''}" data-act="apf" data-v="live">이용 중 ${on.length}</button><button class="${f==='all'?'on':''}" data-act="apf" data-v="all">전체 ${all.length}</button></div>
+  ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th>구매일</th><th>회원</th><th>상품</th><th>내용</th><th>기간</th><th>상태</th><th class="r">금액</th></tr></thead><tbody>${rows.map(p=>`<tr><td>${p.createdAt?fmtTs(p.createdAt):'-'}</td><td>${esc(p.name||'-')}${p.email?`<br><span class="small muted mono">${esc(p.email)}</span>`:''}</td><td>${NM[p.kind]||''} ${esc(p.label||'')}</td><td class="small">${detail(p)}</td><td class="num small">${p.startDate}<br>~ ${p.endDate}</td><td>${live(p)?'<span class="pill ok">이용 중</span>':'<span class="pill">만료</span>'}</td><td class="r num">${won(p.price||0)}<br><span class="small muted">${PM[p.pay]||''}</span></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-box">멤버십 구매 내역이 없습니다.</div>'}</div>`;
 }
 
 /* ===== 관리자: 민원 ===== */
@@ -1162,6 +1175,7 @@ const ACT={
     const rows=[['날짜','시작','종료','좌석','예약자','경로','상태','결제','환불','예약번호'],...aresRows().map(r=>[r.date,hm(r.start),hm(r.end),r.seatId,r.name,r.source==='walkin'?'현장':'앱',resStatusPill(r).replace(/<[^>]+>/g,''),r.price,r.refund||0,r.code])];
     dlFile(`nextwave-예약내역-${S.rf.date||'전체'}.csv`,'text/csv;charset=utf-8','\ufeff'+rows.map(x=>x.map(q).join(',')).join('\r\n'));toast('예약 내역을 내려받았습니다.');},
   areassign:t=>{const r=resList().find(x=>x.id===t.dataset.id);if(!r)return;S.modal={type:'reassign',id:r.id,free:BOOKABLE.filter(c=>c.id!==r.seatId&&seatInfo(c,r.date,r.start,r.end).st==='free').map(c=>c.id)};fresh=true;render();},
+  apf:t=>{S.apf=t.dataset.v;render();},
   wcancel:t=>Store.del('waitlist',t.dataset.id),
   wdone:t=>Store.patch('waitlist',t.dataset.id,{status:'done'}),
   aseat:t=>{S.aSeat=S.aSeat===t.dataset.id?null:t.dataset.id;S.errs={};fresh=true;render();},
@@ -1366,7 +1380,7 @@ async function rInit(){
   sb.auth.onAuthStateChange((_ev,session)=>{setTimeout(()=>rLoadMe(session),0);});
   const {data}=await sb.auth.getSession();await rLoadMe(data.session);
   /* 다른 회원의 예약·취소가 바로 보이도록 5초마다(화면을 보고 있을 때만), 그리고 탭으로 돌아올 때 즉시 새로고침 */
-  const refresh=()=>{if(!R.on||document.hidden)return;rRefreshBase();if(R.me){rLoadMine();rLoadInbox();rLoadWaits();rLoadComplaints();if(isAdmin())rLoadDash();}R.availKey='';
+  const refresh=()=>{if(!R.on||document.hidden)return;rRefreshBase();if(R.me){rLoadMine();rLoadInbox();rLoadWaits();rLoadComplaints();if(isAdmin()){rLoadDash();if(S.atab==='apasses')rLoadPasses();}}R.availKey='';
     R.tick=(R.tick||0)+1;if(R.tick%12===0){rLoadShared();rLoadPasses();if(R.me)rLoadStanding();}
     const b=S.book;if(S.view==='book'&&b.start!=null)rEnsureAvail(b.date,b.start,b.start+b.dur);schedule();};
   setInterval(refresh,5000);
@@ -1458,7 +1472,9 @@ async function rLoadPasses(){
     (data||[]).forEach(p=>{m[p.id]={...p.data,id:p.id};});
     /* 이 브라우저에만 저장돼 있던 구매 기록을 한 번 옮긴다 */
     if(!R.passSynced){R.passSynced=true;for(const p of Object.values(before))if(p.userId===meId&&!m[p.id]){m[p.id]=p;rSavePass(p);}}}
-  if(tk!==R.passTk)return;D.passes=m;schedule();
+  if(tk!==R.passTk)return;D.passes=m;
+  if(meId&&R.me.role!=='admin'){try{R.teamPasses=await rpc('nw_my_team_passes')||[];}catch(e){}}else R.teamPasses=[];
+  schedule();
 }
 async function rSavePass(p){
   if(!R.me||(p.userId!==R.me.id&&!isAdmin())||p.userId==='other')return;
@@ -1776,7 +1792,7 @@ function compressImage(file){return new Promise((res,rej)=>{const u=URL.createOb
 
 /* 관리자: 업장 심사 */
 function vAVenues(){
-  const head=`<div class="head"><div><h2>업장 심사</h2><p>사장님이 올린 업장을 확인하고 공개 여부를 정합니다. 반려할 때는 사유를 적어 주세요. 사장님 화면에 그대로 보입니다.</p></div></div>`;
+  const head=`<div class="head"><div><h2>업장 심사</h2><p>사장님이 올린 업장을 확인하고 공개 여부를 정하거나 삭제합니다. 반려할 때는 사유를 적어 주세요. 사장님 화면에 그대로 보입니다.</p></div></div>`;
   if(!R.on)return head+needDb();
   if(!R.vLoaded.admin)vLoad('admin');
   const all=R.venues.admin,list=all.filter(v=>v.status===S.vfilter);
@@ -1788,7 +1804,7 @@ function vAVenues(){
     <dl class="kv">${v.hours?`<dt>운영 시간</dt><dd>${esc(v.hours)}</dd>`:''}${v.seat_count?`<dt>좌석</dt><dd>${v.seat_count}석</dd>`:''}${v.price_note?`<dt>요금</dt><dd>${esc(v.price_note)}</dd>`:''}${v.phone?`<dt>전화</dt><dd>${esc(v.phone)}</dd>`:''}<dt>지도 위치</dt><dd>${v.lat?`${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}`:'<span style="color:var(--warn)">미지정</span>'}</dd></dl>
     ${v.description?`<p class="small" style="white-space:pre-line">${esc(v.description)}</p>`:''}
     <div class="field"><label for="vr-${v.id}">심사 메모 (반려 사유)</label><input class="in" id="vr-${v.id}" maxlength="300" value="${esc(v.review_note||'')}" placeholder="예: 대표 사진이 흐립니다. 매장 내부 사진으로 바꿔 주세요."></div>
-    <div class="row">${v.status!=='approved'?`<button class="btn sm pri" data-act="vreview" data-id="${v.id}" data-s="approved">승인 · 공개</button>`:''}${v.status!=='rejected'?`<button class="btn sm warn" data-act="vreview" data-id="${v.id}" data-s="rejected">반려</button>`:''}${v.status!=='hidden'?`<button class="btn sm" data-act="vreview" data-id="${v.id}" data-s="hidden">숨김</button>`:''}<a class="btn sm" href="${mapLink(v)}" target="_blank" rel="noopener">지도 확인 ↗</a></div></div>`).join('')}</div>`
+    <div class="row">${v.status!=='approved'?`<button class="btn sm pri" data-act="vreview" data-id="${v.id}" data-s="approved">승인 · 공개</button>`:''}${v.status!=='rejected'?`<button class="btn sm warn" data-act="vreview" data-id="${v.id}" data-s="rejected">반려</button>`:''}${v.status!=='hidden'?`<button class="btn sm" data-act="vreview" data-id="${v.id}" data-s="hidden">숨김</button>`:''}<a class="btn sm" href="${mapLink(v)}" target="_blank" rel="noopener">지도 확인 ↗</a>${S.vconfirm===v.id?`<button class="btn sm warn" data-act="vadel" data-id="${v.id}">정말 삭제</button><button class="btn sm" data-act="vdelno">취소</button><span class="small muted">사진까지 지워지고 되돌릴 수 없습니다.</span>`:`<button class="btn sm warn" data-act="vdelask" data-id="${v.id}">업장 삭제</button>`}</div></div>`).join('')}</div>`
   :`<div class="empty-box">${R.vLoaded.admin?`${VSTAT[S.vfilter][0]} 상태의 업장이 없습니다.`:'불러오는 중…'}</div>`}`;
 }
 
@@ -1801,6 +1817,10 @@ Object.assign(RACT,{
   vdropnew:t=>{const p=S.vnew.splice(+t.dataset.i,1)[0];if(p)URL.revokeObjectURL(p.url);render();},
   vdelphoto:async t=>{try{await sb.storage.from('venue-photos').remove([t.dataset.path]);const {error}=await sb.from('nw_venue_photos').delete().eq('id',t.dataset.id);if(error)throw error;await vLoad('mine');toast('사진을 지웠습니다.');}catch(e){toast(errMsg(e));}},
   vdelask:t=>{S.vconfirm=t.dataset.id;render();},vdelno:()=>{S.vconfirm=null;render();},
+  vadel:async t=>{const v=R.venues.admin.find(x=>x.id===t.dataset.id);if(!v)return;
+    try{const {error}=await sb.from('nw_venues').delete().eq('id',v.id);if(error)throw error;
+      if(v.photos.length)await sb.storage.from('venue-photos').remove(v.photos.map(p=>p.path));
+      S.vconfirm=null;await vLoad('admin');R.vLoaded.public=false;toast(`${v.name} 업장을 삭제했습니다. 등록한 회원에게 알림이 갑니다.`);}catch(e){toast(errMsg(e));}},
   vdel:async t=>{const v=R.venues.mine.find(x=>x.id===t.dataset.id);if(!v)return;
     try{if(v.photos.length)await sb.storage.from('venue-photos').remove(v.photos.map(p=>p.path));const {error}=await sb.from('nw_venues').delete().eq('id',v.id);if(error)throw error;S.vconfirm=null;await vLoad('mine');R.vLoaded.public=false;toast('업장을 삭제했습니다.');}catch(e){toast(errMsg(e));}},
   vaddr:()=>openAddrSearch(),
