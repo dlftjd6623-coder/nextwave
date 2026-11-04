@@ -519,16 +519,22 @@ const isEditing=()=>{const a=document.activeElement;return a&&a.closest&&a.close
 function schedule(){if(isEditing()){pending=true;return;}if(pending==='raf')return;pending='raf';requestAnimationFrame(()=>{pending=false;render();});}
 setInterval(()=>{if(pending===true&&!isEditing()){pending=false;render();}},700);
 
+const lastHtml={app:null,modal:null};
 function render(){
   const roots=[$('#app'),$('#modal')],keep={};
   if(!fresh)roots.forEach(r=>r.querySelectorAll('input,textarea,select').forEach(el=>{if(el.id&&!el.dataset.live&&el.type!=='file')keep[el.id]=(el.type==='checkbox'||el.type==='radio')?el.checked:el.value;}));
-  const act=document.activeElement?.id;fresh=false;
-  $('#app').innerHTML=ready?header()+`<main><div class="wrap">${view()}</div></main>`+footer():`<div class="loading">불러오는 중…</div>`;
-  $('#modal').innerHTML=ready&&S.modal?modalHTML():'';
+  const act=document.activeElement?.id,force=fresh;fresh=false;
+  /* 내용이 그대로면 다시 그리지 않고, 다시 그릴 때도 펼친 항목은 펼친 채로 둔다 (자동 새로고침 때문에 접히지 않도록) */
+  const openIds=[...document.querySelectorAll('#app details[open]')].map(d=>d.id).filter(Boolean);
+  const appHtml=ready?header()+`<main><div class="wrap">${view()}</div></main>`+footer():`<div class="loading">불러오는 중…</div>`,modalHtml=ready&&S.modal?modalHTML():'';
+  const appChanged=force||appHtml!==lastHtml.app,modalChanged=force||modalHtml!==lastHtml.modal;
+  if(!appChanged&&!modalChanged)return;
+  if(appChanged){$('#app').innerHTML=appHtml;lastHtml.app=appHtml;openIds.forEach(id=>{const d=document.getElementById(id);if(d)d.open=true;});}
+  if(modalChanged){$('#modal').innerHTML=modalHtml;lastHtml.modal=modalHtml;}
   for(const id in keep){const el=document.getElementById(id);if(!el||el.dataset.live)continue;if(el.type==='checkbox'||el.type==='radio')el.checked=keep[id];else el.value=keep[id];}
   if(act){const el=document.getElementById(act);if(el&&el.focus)el.focus({preventScroll:true});}
   document.querySelectorAll('[data-qr]').forEach(el=>{try{const q=qrcode(0,'M');q.addData(el.dataset.qr);q.make();el.innerHTML=q.createSvgTag({cellSize:4,margin:2});}catch(e){el.textContent='';}});
-  if(ready){mountMap();mountVMap();mountPMap();}
+  if(ready&&appChanged){mountMap();mountVMap();mountPMap();}
 }
 function go(v,extra){S.view=v;S.bell=false;Object.assign(S,extra||{});fresh=true;S.errs={};render();window.scrollTo({top:0});}
 let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3400);}
