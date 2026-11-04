@@ -742,7 +742,7 @@ function bookPanel(s,e){
     const passes=me&&!R.on?myPasses(me.id,b.date):[];
     const hp=passes.find(p=>p.kind==='hours'&&p.hoursLeft*60>=b.dur);
     const pp=passes.find(p=>p.kind==='period'&&p.startDate<=b.date&&p.endDate>=b.date);
-    body=`<dl class="kv"><dt>요금 기준</dt><dd>${'시간 요금 · '+durLabel(b.dur)+(R.on?' · 현장 결제':'')}</dd></dl>
+    body=`<dl class="kv"><dt>요금 기준</dt><dd>${'시간 요금 · '+durLabel(b.dur)}</dd></dl>
       <div class="spread"><span class="muted">결제 금액</span><span class="price">${won(price)}</span></div>
       ${pp?`<div class="notice-bar info">정기권 이용 기간이라 0원으로 예약할 수 있습니다.</div>`:hp?`<div class="notice-bar info">시간권에서 ${durLabel(b.dur)} 차감으로 결제할 수 있습니다. (잔여 ${hp.hoursLeft}시간)</div>`:''}
       ${blocked?`<div class="notice-bar bad">노쇼 누적으로 ${fmtTs(me.blockedUntil)}까지 예약이 제한되어 있습니다.</div>`:`<button class="btn pri block" data-act="reserve">${me?('예약하고 결제하기'):'로그인하고 예약하기'}</button>`}`;
