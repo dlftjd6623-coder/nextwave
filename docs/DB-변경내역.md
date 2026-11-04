@@ -25,6 +25,7 @@ Supabase 프로젝트에 적용된 변경입니다. 전체 SQL은 Supabase 대�
 | 11/04 | `nw_polling_indexes` | 5초 갱신 조회용 색인 |
 | 11/04 | `nw_pay_with_member_pass` | 시간권·자유석 예약, 취소 시 시간 복구, 잔여 시간은 DB 함수만 변경 |
 | 11/04 | `nw_pass_notice_hours_format` | 알림의 시간 표기 정리 |
+| 11/04 | `nw_team_room_booking_and_pass_refunds` | 팀 프로젝트룸 묶음 예약·노쇼·취소, 팀 전용 룸 보호, 멤버십 환불 요청·처리, 결제자 이메일 채움 |
 | 11/04 | `nw_notify_on_member_pass_deleted` | 관리자가 멤버십 삭제 시 구매자·팀원 알림 |
 | 11/04 | `nw_membership_alerts_and_venue_delete_notice` | 멤버십 구매 시 구매자·관리자·팀원 알림, 나중에 가입한 팀원 알림, 관리자 업장 삭제 시 등록자 알림 |
 
