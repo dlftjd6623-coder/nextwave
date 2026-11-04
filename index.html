@@ -335,7 +335,9 @@ const fmtTs=t=>{if(!t)return '';const d=new Date(t);return `${d.getMonth()+1}/${
 const uid=p=>(p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const code6=()=>{const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)];return s;};
 const durLabel=m=>{const h=Math.floor(m/60),r=m%60;return (h?h+'시간':'')+(r?(h?' ':'')+r+'분':'');};
-const fmtPhone=v=>{const d=String(v).replace(/\D/g,'').slice(0,11);if(d.length<4)return d;if(d.length<8)return d.slice(0,3)+'-'+d.slice(3);return d.slice(0,3)+'-'+d.slice(3,d.length-4)+'-'+d.slice(-4);};
+/* 서울 02, 050X 안심번호, 1588류 대표번호, 그 밖의 3자리 국번을 나눠서 자동으로 하이픈을 넣는다 */
+const fmtPhone=v=>{const raw=String(v).replace(/\D/g,''),kind=raw.startsWith('02')?[2,10]:raw.startsWith('050')?[4,12]:raw.startsWith('1')?[4,8]:[3,11],d=raw.slice(0,kind[1]),h=kind[0];
+  if(d.length<=h)return d;const rest=d.slice(h);if(rest.length<=4)return d.slice(0,h)+'-'+rest;return d.slice(0,h)+'-'+rest.slice(0,rest.length-4)+'-'+rest.slice(-4);};
 
 /* ===== 좌석 배치 (평면도 좌표) ===== */
 /* NextWave 1F: A 창가석 12 · B 집중석 12 · C 팀 프로젝트(프로젝트룸 3개 × 4석) · D 라운지 6 = 42석 */
@@ -528,7 +530,7 @@ function render(){
   const openIds=[...document.querySelectorAll('#app details[open]')].map(d=>d.id).filter(Boolean);
   const appHtml=ready?header()+`<main><div class="wrap">${view()}</div></main>`+footer():`<div class="loading">불러오는 중…</div>`,modalHtml=ready&&S.modal?modalHTML():'';
   const appChanged=force||appHtml!==lastHtml.app,modalChanged=force||modalHtml!==lastHtml.modal;
-  if(!appChanged&&!modalChanged)return;
+  if(!appChanged&&!modalChanged){if(ready){mountVMap();mountPMap();}return;}
   if(appChanged){$('#app').innerHTML=appHtml;lastHtml.app=appHtml;openIds.forEach(id=>{const d=document.getElementById(id);if(d)d.open=true;});}
   if(modalChanged){$('#modal').innerHTML=modalHtml;lastHtml.modal=modalHtml;}
   for(const id in keep){const el=document.getElementById(id);if(!el||el.dataset.live)continue;if(el.type==='checkbox'||el.type==='radio')el.checked=keep[id];else el.value=keep[id];}
@@ -1603,9 +1605,10 @@ function partnerForm(){
   <div class="split"><div class="panel stack" style="gap:12px"><h3 style="margin:0">기본 정보</h3>
     <div class="grid2"><div class="field"><label for="pv-name">업장 이름</label><input class="in ${e.name?'bad':''}" id="pv-name" maxlength="40" value="${esc(v.name||'')}" placeholder="예: 집중 스터디카페 안양점">${er('name')}</div>
     <div class="field"><label for="pv-cat">종류</label><select class="in" id="pv-cat">${Object.entries(VCAT).map(([k,l])=>`<option value="${k}" ${v.category===k?'selected':''}>${l}</option>`).join('')}</select></div></div>
-    <div class="field"><label for="pv-addr">주소</label><div class="verify"><input class="in ${e.address?'bad':''}" id="pv-addr" maxlength="120" value="${esc(v.address||'')}" placeholder="도로명 주소"><button class="btn" type="button" data-act="vgeo">위치 찾기</button></div>${er('address')||'<span class="hint">위치 찾기를 누르거나 아래 지도에서 핀을 끌어 정확한 위치를 맞추세요.</span>'}</div>
+    <div class="field"><label for="pv-addr">주소</label><div class="verify"><input class="in ${e.address?'bad':''}" id="pv-addr" maxlength="120" value="${esc(v.address||'')}" placeholder="주소 찾기를 눌러 검색하세요"><button class="btn pri" type="button" data-act="vaddr">주소 찾기</button></div>${er('address')||'<span class="hint">주소를 고르면 지도에 핀이 찍힙니다. 핀이 조금 다르면 끌어서 맞추세요. 직접 고쳐 쓴 주소는 <a href="#" data-act="vgeo">지도에 다시 표시</a>할 수 있어요.</span>'}</div>
+    <div class="field"><label for="pv-addr2">상세 주소 <span class="small muted">(선택)</span></label><input class="in" id="pv-addr2" maxlength="40" placeholder="예: 3층 301호"></div>
     <div class="map-box" id="pmap-slot" style="min-height:220px"></div>
-    <div class="grid2"><div class="field"><label for="pv-phone">전화번호</label><input class="in ${e.phone?'bad':''}" id="pv-phone" data-phone="1" inputmode="numeric" value="${esc(v.phone||'')}" placeholder="031-123-4567">${er('phone')}</div>
+    <div class="grid2"><div class="field"><label for="pv-phone">전화번호</label><input class="in ${e.phone?'bad':''}" id="pv-phone" data-phone="1" inputmode="numeric" value="${esc(v.phone||'')}" placeholder="02-123-4567">${er('phone')||'<span class="hint">숫자만 입력하세요. 02·031·010·0507·1588 번호 모두 됩니다.</span>'}</div>
     <div class="field"><label for="pv-seats">좌석 수</label><input class="in ${e.seats?'bad':''}" id="pv-seats" inputmode="numeric" value="${v.seat_count||''}" placeholder="예: 60">${er('seats')}</div></div>
     <div class="field"><label for="pv-hours">운영 시간</label><input class="in" id="pv-hours" maxlength="80" value="${esc(v.hours||'')}" placeholder="예: 매일 07:00–24:00"></div>
     <div class="field"><label for="pv-price">요금 안내</label><input class="in" id="pv-price" maxlength="200" value="${esc(v.price_note||'')}" placeholder="예: 2시간 3,500원 · 4주 정기권 140,000원"></div>
@@ -1616,9 +1619,10 @@ function partnerForm(){
     <div class="thumbs">${old.map(p=>`<div class="thumb"><img src="${purl(p.path)}" alt=""><button type="button" class="x-thumb" data-act="vdelphoto" data-id="${p.id}" data-path="${esc(p.path)}" aria-label="사진 삭제">×</button></div>`).join('')}
       ${S.vnew.map((p,i)=>`<div class="thumb new"><img src="${p.url}" alt=""><button type="button" class="x-thumb" data-act="vdropnew" data-i="${i}" aria-label="올릴 사진 빼기">×</button></div>`).join('')}
       ${total<8?`<label class="thumb add" for="pv-files">+ 사진 추가</label>`:''}</div>
-    <input type="file" id="pv-files" accept="image/jpeg,image/png,image/webp" multiple data-change="vfiles" hidden>
+    <input type="file" id="pv-files" accept="image/*,.heic,.heif" multiple data-change="vfiles" hidden>
+    ${S.vphotoBusy?`<div class="notice-bar info">사진 준비 중… ${S.vphotoBusy.done}/${S.vphotoBusy.total}</div>`:''}
     ${er('photos')}
-    <div class="row"><button class="btn pri" type="submit" ${S.vsaving?'disabled':''}>${S.vsaving?'저장하는 중…':S.vedit?'수정하고 심사 요청':'등록하고 심사 요청'}</button><button class="btn" type="button" data-act="vcancel">취소</button></div></div></div>
+    <div class="row"><button class="btn pri" type="submit" ${S.vsaving||S.vphotoBusy?'disabled':''}>${S.vsaving?(S.vupload?`사진 올리는 중… ${S.vupload.done}/${S.vupload.total}`:'저장하는 중…'):S.vedit?'수정하고 심사 요청':'등록하고 심사 요청'}</button><button class="btn" type="button" data-act="vcancel">취소</button></div></div></div>
   </form>`;
 }
 function compressImage(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),img=new Image();
@@ -1656,10 +1660,10 @@ Object.assign(RACT,{
   vdelask:t=>{S.vconfirm=t.dataset.id;render();},vdelno:()=>{S.vconfirm=null;render();},
   vdel:async t=>{const v=R.venues.mine.find(x=>x.id===t.dataset.id);if(!v)return;
     try{if(v.photos.length)await sb.storage.from('venue-photos').remove(v.photos.map(p=>p.path));const {error}=await sb.from('nw_venues').delete().eq('id',v.id);if(error)throw error;S.vconfirm=null;await vLoad('mine');R.vLoaded.public=false;toast('업장을 삭제했습니다.');}catch(e){toast(errMsg(e));}},
-  vgeo:async()=>{const a=val('pv-addr');if(a.length<5){S.errs={address:'주소를 먼저 입력하세요.'};render();return;}
-    try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&accept-language=ko&q='+encodeURIComponent(a));const d=await r.json();
-      if(!d.length)throw new Error('none');S.vpos={lat:+d[0].lat,lng:+d[0].lon};S.errs={};render();toast('위치를 찾았습니다. 핀 위치가 맞는지 지도에서 확인하세요.');}
-    catch(e){toast('주소로 위치를 찾지 못했습니다. 지도에서 핀을 직접 끌어 옮겨 주세요.');}},
+  vaddr:()=>openAddrSearch(),
+  vgeo:async()=>{const a=val('pv-addr');if(a.length<5){S.errs={address:'주소 찾기를 눌러 주소를 먼저 골라 주세요.'};render();return;}
+    const words=a.replace(/\(.*?\)/g,' ').trim().split(/\s+/),list=[];for(let i=words.length;i>=2;i--)list.push(words.slice(0,i).join(' '));
+    await placeOnMap(list);},
   vfilter:t=>{S.vfilter=t.dataset.v;render();},
   vreview:async t=>{const id=t.dataset.id,st=t.dataset.s,note=val('vr-'+id);
     if(st==='rejected'&&note.length<2){toast('반려 사유를 적어 주세요. 사장님 화면에 보입니다.');document.getElementById('vr-'+id)?.focus();return;}
@@ -1667,19 +1671,62 @@ Object.assign(RACT,{
       await vLoad('admin');R.vLoaded.public=false;toast(st==='approved'?'승인했습니다. 업장 찾기에 공개됩니다.':st==='rejected'?'반려했습니다.':'숨김 처리했습니다.');}catch(e){toast(errMsg(e));}}
 });
 CHANGE.vcat=t=>{S.vcat=t.value;render();};
-CHANGE.vfiles=async t=>{const files=[...(t.files||[])];t.value='';
-  const v=S.vedit?R.venues.mine.find(x=>x.id===S.vedit):null,room=8-((v&&v.photos.length)||0)-S.vnew.length;
-  if(files.length>room)toast(`사진은 8장까지예요. 앞의 ${Math.max(room,0)}장만 추가합니다.`);
-  for(const f of files.slice(0,Math.max(room,0))){try{const b=await compressImage(f);S.vnew.push({blob:b,url:URL.createObjectURL(b)});}catch(e){toast(errMsg(e));}}
-  render();};
+CHANGE.vfiles=async t=>{const files=[...(t.files||[])];t.value='';if(!files.length)return;
+  const v=S.vedit?R.venues.mine.find(x=>x.id===S.vedit):null,room=Math.max(8-((v&&v.photos.length)||0)-S.vnew.length,0),pick=files.slice(0,room);
+  if(files.length>room)toast(`사진은 8장까지예요. 앞의 ${room}장만 추가합니다.`);
+  const bad=[];S.vphotoBusy={done:0,total:pick.length};render();
+  for(const f of pick){try{const b=await compressImage(await toReadable(f));S.vnew.push({blob:b,url:URL.createObjectURL(b)});}catch(e){console.error(e);bad.push(f.name);}
+    S.vphotoBusy.done++;render();}
+  S.vphotoBusy=null;S.errs={...S.errs,photos:''};render();
+  if(bad.length)toast(`${bad.join(', ')}은(는) 열 수 없는 사진이에요. JPG나 PNG로 바꿔서 올려 주세요.`);};
+const isHeic=f=>/\.hei[cf]$/i.test(f.name)||/image\/hei[cf]/i.test(f.type);
+function loadScript(src){loadScript.cache=loadScript.cache||{};return loadScript.cache[src]=loadScript.cache[src]||new Promise((res,rej)=>{const el=document.createElement('script');el.src=src;el.onload=res;el.onerror=()=>{delete loadScript.cache[src];rej(new Error('스크립트를 불러오지 못했습니다.'));};document.head.appendChild(el);});}
+/* 아이폰 HEIC 사진은 대부분의 브라우저가 못 읽으므로, 그런 사진을 고를 때만 변환 라이브러리를 불러온다 */
+async function toReadable(f){if(!isHeic(f))return f;
+  await loadScript('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js');
+  const out=await window.heic2any({blob:f,toType:'image/jpeg',quality:.9});const b=Array.isArray(out)?out[0]:out;return new File([b],f.name.replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'});}
+const inKorea=(lat,lng)=>lat>=33&&lat<=39&&lng>=124&&lng<=132;
+/* 주소 → 좌표: 앞쪽 후보가 가장 정확하다. 못 찾으면 더 넓은 지역으로 넘어간다 */
+async function geocodeKr(queries){
+  for(let i=0;i<queries.length;i++){const q=queries[i];
+    try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&accept-language=ko&q='+encodeURIComponent(q));const d=await r.json();
+      if(d.length&&inKorea(+d[0].lat,+d[0].lon))return {lat:+d[0].lat,lng:+d[0].lon,exact:i===0};}catch(e){}
+    try{const r=await fetch('https://photon.komoot.io/api/?limit=5&lat=37.5&lon=127&q='+encodeURIComponent(q));const d=await r.json();const f=(d.features||[]).find(x=>x.properties.countrycode==='KR');
+      if(f&&inKorea(f.geometry.coordinates[1],f.geometry.coordinates[0]))return {lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],exact:i===0};}catch(e){}
+  }
+  return null;
+}
+async function placeOnMap(queries){const hit=await geocodeKr([...new Set(queries.filter(Boolean))]);
+  if(!hit){toast('지도에서 위치를 찾지 못했어요. 지도를 눌러 핀을 직접 놓아 주세요. 주소는 그대로 저장됩니다.');return;}
+  S.vpos={lat:hit.lat,lng:hit.lng};S.errs={...S.errs,address:''};render();
+  toast(hit.exact?'지도에 표시했어요. 핀 위치가 맞는지 확인해 주세요.':'동네까지만 찾았어요. 핀을 끌어서 정확한 위치로 옮겨 주세요.');}
+/* 주소 검색: 다시 그리기의 영향을 받지 않도록 #app 밖에 띄운다 */
+async function openAddrSearch(){
+  try{await loadScript('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js');}
+  catch(e){toast('주소 검색을 불러오지 못했어요. 주소를 직접 입력한 뒤 지도에서 핀을 놓아 주세요.');document.getElementById('pv-addr')?.focus();return;}
+  document.getElementById('addr-layer')?.remove();
+  const layer=document.createElement('div');layer.id='addr-layer';layer.className='scrim';layer.innerHTML='<div class="modal" role="dialog" aria-modal="true" aria-label="주소 찾기"><header><h3>주소 찾기</h3><button class="x" type="button" aria-label="닫기">×</button></header><div id="addr-box" style="height:min(480px,70vh)"></div></div>';
+  const close=()=>{layer.remove();document.removeEventListener('keydown',onKey);},onKey=e=>{if(e.key==='Escape')close();};
+  layer.querySelector('.x').onclick=close;layer.onclick=e=>{if(e.target===layer)close();};document.addEventListener('keydown',onKey);document.body.appendChild(layer);
+  new window.daum.Postcode({width:'100%',height:'100%',oncomplete:d=>{close();
+    const road=d.roadAddress||d.autoRoadAddress||'',jibun=d.jibunAddress||d.autoJibunAddress||'',base=road||jibun||d.address,addr=base+(d.buildingName?` (${d.buildingName})`:'');
+    const el=document.getElementById('pv-addr');if(el)el.value=addr;document.getElementById('pv-addr2')?.focus();
+    placeOnMap([road,jibun,[d.sigungu,d.bname].filter(Boolean).join(' '),[d.sido,d.sigungu].filter(Boolean).join(' ')]);}}).embed(layer.querySelector('#addr-box'));
+}
+function venueSaveError(err){const m=String(err&&(err.message||err.error_description)||err);
+  if(/row-level security|violates row|not authorized|unauthorized|jwt/i.test(m))return '로그인이 만료됐을 수 있어요. 다시 로그인한 뒤 저장해 주세요.';
+  if(/too large|maximum|exceeded/i.test(m))return '사진 용량이 너무 커요. 다른 사진으로 바꿔 주세요.';
+  if(/mime/i.test(m))return 'JPG·PNG 사진만 올릴 수 있어요.';
+  if(/failed to fetch|network/i.test(m))return '인터넷 연결을 확인하고 다시 저장해 주세요. 올리지 못한 사진은 그대로 남아 있어요.';
+  return errMsg(err);}
 RFORM.partner=async function(){
   const me=ME(),e={},seats=val('pv-seats'),phone=val('pv-phone');
-  const v={name:val('pv-name'),category:val('pv-cat'),address:val('pv-addr'),phone:phone||null,hours:val('pv-hours')||null,seat_count:seats?Number(seats):null,
+  const v={name:val('pv-name'),category:val('pv-cat'),address:[val('pv-addr'),val('pv-addr2')].filter(Boolean).join(' '),phone:phone||null,hours:val('pv-hours')||null,seat_count:seats?Number(seats):null,
     price_note:val('pv-price')||null,description:(document.getElementById('pv-desc')?.value||'').trim()||null,
     amenities:[...document.querySelectorAll('[data-amen]:checked')].map(x=>x.value),lat:S.vpos?S.vpos.lat:null,lng:S.vpos?S.vpos.lng:null};
   if(v.name.length<2)e.name='업장 이름을 2자 이상 입력하세요.';
-  if(v.address.length<5)e.address='주소를 5자 이상 입력하세요.';
-  if(phone&&!/^0\d{1,2}-\d{3,4}-\d{4}$/.test(phone))e.phone='031-123-4567 형식으로 입력하세요.';
+  if(v.address.length<5)e.address='주소 찾기를 눌러 주소를 골라 주세요.';else if(v.address.length>120)e.address='주소와 상세 주소를 합쳐 120자 이내로 줄여 주세요.';
+  if(phone&&!/^(0\d{1,2}-\d{3,4}-\d{4}|050\d-\d{4}-\d{4}|1\d{3}-\d{4})$/.test(phone))e.phone='번호가 짧거나 깁니다. 예: 02-123-4567, 031-123-4567, 0507-1234-5678';
   if(seats&&(!Number.isInteger(v.seat_count)||v.seat_count<1||v.seat_count>1000))e.seats='1~1000 사이 숫자만 입력하세요.';
   const old=S.vedit?(R.venues.mine.find(x=>x.id===S.vedit)||{photos:[]}).photos:[];
   if(!old.length&&!S.vnew.length)e.photos='사진을 1장 이상 올려 주세요. 손님이 가장 먼저 보는 부분이에요.';
@@ -1690,15 +1737,15 @@ RFORM.partner=async function(){
     let id=S.vedit;
     if(id){const {error}=await sb.from('nw_venues').update(v).eq('id',id);if(error)throw error;}
     else{const {data,error}=await sb.from('nw_venues').insert(v).select('id').single();if(error)throw error;id=data.id;S.vedit=id;}
-    let order=old.length?Math.max(...old.map(p=>p.sort_order))+1:0;
+    let order=old.length?Math.max(...old.map(p=>p.sort_order))+1:0;S.vupload={done:0,total:S.vnew.length};render();
     while(S.vnew.length){const p=S.vnew[0],path=`${me.id}/${id}/${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}.jpg`;
       const up=await sb.storage.from('venue-photos').upload(path,p.blob,{contentType:'image/jpeg',upsert:false});if(up.error)throw up.error;
       const ins=await sb.from('nw_venue_photos').insert({venue_id:id,path,sort_order:order++});if(ins.error)throw ins.error;
-      URL.revokeObjectURL(p.url);S.vnew.shift();}
+      URL.revokeObjectURL(p.url);S.vnew.shift();S.vupload.done++;render();}
     S.vform=false;S.vedit=null;S.vpos=null;S.errs={};fresh=true;await vLoad('mine');R.vLoaded.public=false;
     toast('저장했습니다. 관리자 심사가 끝나면 업장 찾기에 공개됩니다.');
-  }catch(err){toast(errMsg(err));}
-  finally{S.vsaving=false;render();}
+  }catch(err){console.error(err);toast(venueSaveError(err));if(S.vedit)await vLoad('mine');}
+  finally{S.vsaving=false;S.vupload=null;render();}
 };
 
 /* 업장 지도들 (렌더할 때마다 다시 만들지 않도록 노드를 유지) */
@@ -1708,7 +1755,7 @@ function mountVMap(){
   if(!vmapNode){vmapNode=document.createElement('div');vmapNode.style.cssText='position:absolute;inset:0';slot.appendChild(vmapNode);
     vmap=L.map(vmapNode,{scrollWheelZoom:false}).setView([LOC.lat,LOC.lng],12);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(vmap);vlayer=L.layerGroup().addTo(vmap);}
-  else slot.appendChild(vmapNode);
+  else if(vmapNode.parentNode!==slot)slot.appendChild(vmapNode);
   if(vmapDrawn!==(R.vmapVer||0)){vmapDrawn=R.vmapVer||0;vlayer.clearLayers();const pts=[[LOC.lat,LOC.lng]];
     L.marker([LOC.lat,LOC.lng],{icon:L.divIcon({className:'nw-pin',html:'<span></span>',iconSize:[32,32],iconAnchor:[16,30]}),title:'NextWave 연곡도서관'}).addTo(vlayer).on('click',()=>go('book'));
     R.venues.public.filter(v=>v.lat&&v.lng).forEach(v=>{pts.push([v.lat,v.lng]);L.marker([v.lat,v.lng],{icon:L.divIcon({className:'nw-pin partner',html:'<span></span>',iconSize:[32,32],iconAnchor:[16,30]}),title:v.name}).addTo(vlayer).on('click',()=>{S.modal={type:'venue',id:v.id};render();});});
@@ -1725,7 +1772,7 @@ function mountPMap(){
     pmarker=L.marker([at.lat,at.lng],{draggable:true,icon:L.divIcon({className:'nw-pin partner',html:'<span></span>',iconSize:[32,32],iconAnchor:[16,30]})}).addTo(pmap);
     pmarker.on('dragend',()=>{const p=pmarker.getLatLng();S.vpos={lat:p.lat,lng:p.lng};});
     pmap.on('click',ev=>{pmarker.setLatLng(ev.latlng);S.vpos={lat:ev.latlng.lat,lng:ev.latlng.lng};});}
-  else slot.appendChild(pmapNode);
+  else if(pmapNode.parentNode!==slot)slot.appendChild(pmapNode);
   if(S.vpos){const cur=pmarker.getLatLng();if(Math.abs(cur.lat-S.vpos.lat)>1e-7||Math.abs(cur.lng-S.vpos.lng)>1e-7){pmarker.setLatLng([S.vpos.lat,S.vpos.lng]);pmap.setView([S.vpos.lat,S.vpos.lng],17);}}
   setTimeout(()=>pmap.invalidateSize(),0);
 }
