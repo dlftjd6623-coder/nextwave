@@ -522,7 +522,7 @@ function sweep(){
     }
   });
   Object.values(D.waitlist).forEach(w=>{if(w.status==='waiting'&&(w.date<t||(w.date===t&&n>=w.end)))Store.patch('waitlist',w.id,{status:'expired'});});
-  Object.values(D.passes).forEach(p=>{if(p.status==='active'&&p.endDate<t)Store.patch('passes',p.id,{status:'expired'});});
+  if(!R.on)Object.values(D.passes).forEach(p=>{if(p.status==='active'&&p.endDate<t)Store.patch('passes',p.id,{status:'expired'});});
 }
 
 /* ===== 화면 상태 ===== */
@@ -750,7 +750,7 @@ function bookPanel(s,e){
     body=`<div class="notice-bar">${esc(info.label)} · 이 프로젝트룸은 ${info.pass.endDate}까지 팀 멤버십으로 사용 중입니다. 다른 룸이나 좌석을 골라 주세요.</div>`;
   }else if(info.st==='free'){
     const price=priceFor(seat.id,b.dur),blocked=me&&me.blockedUntil&&me.blockedUntil>Date.now();
-    const passes=me&&!R.on?myPasses(me.id,b.date):[];
+    const passes=me?myPasses(me.id,b.date):[];
     const hp=passes.find(p=>p.kind==='hours'&&p.hoursLeft*60>=b.dur);
     const pp=passes.find(p=>p.kind==='period'&&p.startDate<=b.date&&p.endDate>=b.date);
     body=`<dl class="kv"><dt>요금 기준</dt><dd>${'시간 요금 · '+durLabel(b.dur)}</dd></dl>
@@ -1412,9 +1412,12 @@ async function rLoadInbox(){
   R.inboxSeen=new Set(R.notices.map(n=>n.id));schedule();
 }
 async function rAttachRefunds(list){
-  const ids=list.filter(r=>r.status==='cancelled').map(r=>r.id);if(!ids.length)return list;
-  const {data}=await sb.from('nw_refunds').select('id,reservation_id,requested_amount_won,amount_won,status').in('reservation_id',ids);
-  (data||[]).forEach(f=>{const r=list.find(x=>x.id===f.reservation_id);if(!r)return;r.refund=Number(f.amount_won??f.requested_amount_won??0);r.refundRatio=r.price?r.refund/r.price:0;r.refundId=f.id;r.refundStatus=f.status;});
+  if(!list.length)return list;
+  const ids=list.filter(r=>r.status==='cancelled').map(r=>r.id);
+  const [rf,rd]=await Promise.all([ids.length?sb.from('nw_refunds').select('id,reservation_id,requested_amount_won,amount_won,status').in('reservation_id',ids):{data:[]},sb.from('nw_pass_redemptions').select('reservation_id,pass_id,kind,hours_used,refund_hours').in('reservation_id',list.map(r=>r.id))]);
+  (rf.data||[]).forEach(f=>{const r=list.find(x=>x.id===f.reservation_id);if(!r)return;r.refund=Number(f.amount_won??f.requested_amount_won??0);r.refundRatio=r.price?r.refund/r.price:0;r.refundId=f.id;r.refundStatus=f.status;});
+  /* 멤버십 예약은 돈을 받지 않았으므로 금액 대신 사용 시간으로 보여 준다 */
+  (rd.data||[]).forEach(p=>{const r=list.find(x=>x.id===p.reservation_id);if(!r)return;r.listPrice=r.price;r.price=0;r.pay=p.kind;r.passId=p.pass_id;r.hoursUsed=Number(p.hours_used)||0;r.refundHours=Number(p.refund_hours)||0;if(r.status==='cancelled')r.refundRatio=r.hoursUsed?r.refundHours/r.hoursUsed:0;});
   return list;
 }
 async function rLoadWaits(){
@@ -1459,7 +1462,8 @@ async function rLoadPasses(){
 }
 async function rSavePass(p){
   if(!R.me||(p.userId!==R.me.id&&!isAdmin())||p.userId==='other')return;
-  const {error}=await sb.from('nw_member_passes').upsert({id:p.id,user_id:p.userId,data:p,updated_at:new Date().toISOString()});
+  const row={id:p.id,user_id:p.userId,data:p,updated_at:new Date().toISOString()};
+  const {error}=isAdmin()?await sb.from('nw_member_passes').upsert(row):await sb.from('nw_member_passes').insert(row);
   if(error)toast('멤버십 기록을 저장하지 못했습니다. 다시 시도하세요.');
 }
 async function rDelPass(id){const {error}=await sb.from('nw_member_passes').delete().eq('id',id);if(error)toast(errMsg(error));}
@@ -1487,22 +1491,24 @@ function rReserve(){
   const b=S.book,seat=SEAT[b.seat];
   S.modal={type:'rreq',seat:seat.id,date:b.date,s:b.start,e:b.start+b.dur};S.errs={};fresh=true;render();
 }
+function passChoice(m){const me=ME(),mins=m.e-m.s,ps=me?myPasses(me.id,m.date):[];return {hp:ps.find(p=>p.kind==='hours'&&p.hoursLeft*60>=mins),pp:ps.find(p=>p.kind==='period'&&p.startDate<=m.date&&p.endDate>=m.date)};}
 const RMODAL={
-  rreq:(shell,e)=>{const m=S.modal,seat=SEAT[m.seat];
+  rreq:(shell,e)=>{const m=S.modal,seat=SEAT[m.seat],pk=passChoice(m),extra=[];
+    if(pk.pp)extra.push(['period','자유석 멤버십 (0원)']);if(pk.hp)extra.push(['hours',`시간권 ${durLabel(m.e-m.s)} 차감 (잔여 ${pk.hp.hoursLeft}시간)`]);
     return shell('예약 결제',`<form data-form="rreq" novalidate><div class="body">
       <dl class="kv"><dt>좌석</dt><dd>${seat.id} · ${ZONES[seat.zone].label}</dd><dt>일시</dt><dd>${fmtDate(m.date)} ${hm(m.s)}–${hm(m.e)}</dd><dt>이용 시간</dt><dd>${durLabel(m.e-m.s)}</dd><dt>결제 금액</dt><dd><b class="num">${won(priceFor(seat.id,m.e-m.s))}</b></dd></dl>
-      <div class="field"><label>간편결제 수단</label>${payMethods()}</div>
-      <div class="notice-bar info">결제가 승인되면 예약이 바로 확정됩니다. 시연용 결제라 실제로 청구되지 않습니다.</div>
+      <div class="field"><label>${extra.length?'결제 수단':'간편결제 수단'}</label>${payMethods(extra)}</div>
+      <div class="notice-bar info">${extra.length?'멤버십을 고르면 요금이 청구되지 않습니다. ':''}결제가 승인되면 예약이 바로 확정됩니다. 시연용 결제라 실제로 청구되지 않습니다.</div>
       <div class="field"><label>이용 규칙 동의</label>${R.rules.map(r=>`<label class="check"><input type="checkbox" id="rule-${r.id}" data-rule="${r.id}" data-ver="${r.version}"> <span><b>${esc(r.title)}</b>${r.body?` · ${esc(r.body)}`:''}</span></label>`).join('')||'<span class="hint">동의할 규칙이 없습니다.</span>'}${e.rules?`<span class="err">${e.rules}</span>`:''}</div>
       ${e.req?`<div class="notice-bar bad">${esc(e.req)}</div>`:''}</div>
-      <footer><button class="btn" type="button" data-act="close">취소</button><button class="btn pri" type="submit" ${m.busy?'disabled':''}>${m.busy?'결제 승인 중…':`${won(priceFor(seat.id,m.e-m.s))} 결제하기`}</button></footer></form>`);},
+      <footer><button class="btn" type="button" data-act="close">취소</button><button class="btn pri" type="submit" ${m.busy?'disabled':''}>${m.busy?'결제 승인 중…':extra.length?'예약 확정하기':`${won(priceFor(seat.id,m.e-m.s))} 결제하기`}</button></footer></form>`);},
   qr:(shell)=>{const m=S.modal,r=R.res.find(x=>x.id===m.id);if(!r)return '';
     return shell('입장 QR',`<div class="body">${m.token?`<div class="qr"><div data-qr="${esc(m.token)}"></div><div class="code">${r.code}</div></div><p class="small muted">만료 ${fmtTs(new Date(m.exp).getTime())} · 다른 사람에게 공유하지 마세요.</p>`:`<p class="muted">${m.err?esc(m.err):'QR을 발급하는 중…'}</p>`}
       <dl class="kv"><dt>좌석</dt><dd class="mono">${r.seatId}</dd><dt>일시</dt><dd>${fmtDate(r.date)} ${hm(r.start)}–${hm(r.end)}</dd><dt>상태</dt><dd>${resStatusPill(r)}</dd></dl>
       ${m.token?`<button class="btn pri block" data-act="ruseqr" data-id="${r.id}">${r.status==='checkedin'?'이 QR로 퇴실 기록':'이 QR로 입실 기록'}</button>`:''}</div>`);},
   cancel:(shell)=>{const m=S.modal,r=R.res.find(x=>x.id===m.id);if(!r)return '';const q=m.quote;
     return shell('예약 취소',`<div class="body"><dl class="kv"><dt>좌석</dt><dd class="mono">${r.seatId}</dd><dt>일시</dt><dd>${fmtDate(r.date)} ${hm(r.start)}–${hm(r.end)}</dd><dt>요금</dt><dd>${won(r.price)}</dd></dl>
-      ${q?`<div class="spread"><span class="muted">결제 확인액 ${won(q.paid_won||0)}</span><span class="price">환불 ${q.percent!=null?Math.round(q.percent)+'% · ':''}${won(q.refundable_won||0)}</span></div>${q.requires_review?'<p class="small muted">환불 금액은 운영자 검토가 필요합니다.</p>':''}${q.can_cancel===false?'<div class="notice-bar bad">현재 상태에서는 취소할 수 없습니다.</div>':''}`:`<p class="muted">${m.err?esc(m.err):'환불 예상액을 확인하는 중…'}</p>`}
+      ${q&&r.pay==='hours'?`<div class="spread"><span class="muted">시간권 ${r.hoursUsed}시간 사용</span><span class="price">복구 ${+(r.hoursUsed*(q.percent||0)/100).toFixed(2)}시간</span></div>`:q&&r.pay==='period'?`<div class="spread"><span class="muted">자유석 멤버십 예약</span><span class="price">환불 금액 없음</span></div>`:q?`<div class="spread"><span class="muted">결제 확인액 ${won(q.paid_won||0)}</span><span class="price">환불 ${q.percent!=null?Math.round(q.percent)+'% · ':''}${won(q.refundable_won||0)}</span></div>${q.requires_review?'<p class="small muted">환불 금액은 운영자 검토가 필요합니다.</p>':''}${q.can_cancel===false?'<div class="notice-bar bad">현재 상태에서는 취소할 수 없습니다.</div>':''}`:`<p class="muted">${m.err?esc(m.err):'환불 예상액을 확인하는 중…'}</p>`}
       <div class="field"><label for="rc-reason">취소 사유 (선택)</label><input class="in" id="rc-reason" maxlength="100"></div></div>`,
       `<button class="btn" data-act="close">돌아가기</button><button class="btn warn" data-act="docancel" data-id="${r.id}" ${q&&q.can_cancel!==false?'':'disabled'}>예약 취소</button>`);},
   signup:(shell,e)=>{const er=k=>e[k]?`<span class="err">${e[k]}</span>`:'';
@@ -1553,7 +1559,7 @@ const RACT={
       S.modal=null;toast(r.status==='checkedin'?'퇴실을 기록했습니다.':'입실을 기록했습니다.');await rLoadMine();}catch(e){toast(errMsg(e));}},
   cancel:async t=>{const id=t.dataset.id;S.modal={type:'cancel',id};render();
     try{const q=await rpc('nw_quote_cancellation',{p_reservation_id:id});if(S.modal&&S.modal.id===id){S.modal.quote=q;render();}}catch(e){if(S.modal&&S.modal.id===id){S.modal.err=errMsg(e);render();}}},
-  docancel:async t=>{const r=R.res.find(x=>x.id===t.dataset.id),why=val('rc-reason')||null;try{if(isAdmin()&&r&&r.source==='walkin')await rpc('nw_cancel_onsite_reservation',{p_reservation_id:t.dataset.id,p_reason:why,p_customer_consent:true});else await rpc('nw_cancel_reservation',{p_reservation_id:t.dataset.id,p_reason:why});S.modal=null;toast('예약을 취소했습니다.');await rLoadMine();}catch(e){toast(errMsg(e));}},
+  docancel:async t=>{const r=R.res.find(x=>x.id===t.dataset.id),why=val('rc-reason')||null;try{if(isAdmin()&&r&&r.source==='walkin')await rpc('nw_cancel_onsite_reservation',{p_reservation_id:t.dataset.id,p_reason:why,p_customer_consent:true});else await rpc('nw_cancel_reservation',{p_reservation_id:t.dataset.id,p_reason:why});S.modal=null;toast('예약을 취소했습니다.');await rLoadMine();rLoadPasses();}catch(e){toast(errMsg(e));}},
   /* 관리자 */
   ain:async t=>{const r=R.res.find(x=>x.id===t.dataset.id);if(!r)return;
     if(r.status==='pending'){try{if(r.timing==='on_site'){await rpc('nw_approve_reservation',{p_reservation_id:r.id,p_note:null});toast(`${r.seatId} 예약을 승인했습니다.`);}else{await rpc('nw_record_onsite_payment',{p_reservation_id:r.id,p_amount_won:r.price,p_reference:`ONSITE-${r.code}-${Date.now()}`});toast(`${r.seatId} 결제를 확인했습니다.`);}await rLoadMine();}catch(e){toast(errMsg(e));}}
@@ -1599,10 +1605,12 @@ const RFORM={
     if(boxes.some(b=>!b.checked)){S.errs={rules:'모든 이용 규칙에 동의해야 예약할 수 있습니다.'};render();return;}
     m.busy=true;S.errs={};render();
     const pm=document.querySelector('input[name="pm"]:checked')?.value||'card';
-    try{const d=await rpc('nw_pay_reservation',{p_seat_id:R.seatId[m.seat],p_starts_at:kstISO(m.date,m.s),p_ends_at:kstISO(m.date,m.e),p_rule_ids:boxes.map(b=>b.dataset.rule),p_rule_versions:boxes.map(b=>({id:b.dataset.rule,version:Number(b.dataset.ver)})),p_method:pm});
+    const pk=passChoice(m),pass=pm==='hours'?pk.hp:pm==='period'?pk.pp:null;
+    const base={p_seat_id:R.seatId[m.seat],p_starts_at:kstISO(m.date,m.s),p_ends_at:kstISO(m.date,m.e),p_rule_ids:boxes.map(b=>b.dataset.rule),p_rule_versions:boxes.map(b=>({id:b.dataset.rule,version:Number(b.dataset.ver)}))};
+    try{const d=pass?await rpc('nw_pay_with_pass',{...base,p_pass_id:pass.id}):await rpc('nw_pay_reservation',{...base,p_method:pm});
       const zn=SEAT[m.seat]&&SEAT[m.seat].zone,bd=S.book.date;R.waits.filter(w=>w.date===bd&&w.zone===zn).forEach(w=>rpc('nw_cancel_waitlist',{p_waitlist_id:w.id}).catch(()=>{}));
-      const row=Array.isArray(d)?d[0]:d;S.modal=null;S.book.seat=null;R.availKey='';await rLoadMine();go('my',{mytab:'now'});
-      toast(`${m.seat} 결제가 승인되어 예약이 확정되었습니다. ${row&&row.payment_method||PM[pm]} ${won(row&&row.amount_won||priceFor(m.seat,m.e-m.s))} · 시작 15분 안에 QR로 체크인해 주세요.`);}
+      const row=Array.isArray(d)?d[0]:d;S.modal=null;S.book.seat=null;R.availKey='';await Promise.all([rLoadMine(),pass?rLoadPasses():null]);go('my',{mytab:'now'});
+      toast(pass?`${m.seat} 예약이 확정되었습니다. ${row&&row.payment_method||PM[pm]} · 시작 15분 안에 QR로 체크인해 주세요.`:`${m.seat} 결제가 승인되어 예약이 확정되었습니다. ${row&&row.payment_method||PM[pm]} ${won(row&&row.amount_won||priceFor(m.seat,m.e-m.s))} · 시작 15분 안에 QR로 체크인해 주세요.`);}
     catch(e){m.busy=false;S.errs={req:errMsg(e)};render();}},
   async complaint(){const me=ME(),body=val('cp-body'),cat=document.querySelector('input[name="cat"]:checked')?.value,seat=val('cp-seat').toUpperCase();
     if(body.length<5){S.errs={cpBody:'내용을 5자 이상 적어 주세요.'};render();return;}

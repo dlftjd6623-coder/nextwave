@@ -23,6 +23,8 @@ Supabase 프로젝트에 적용된 변경입니다. 전체 SQL은 Supabase 대�
 | 11/04 | `nw_member_passes` | 멤버십 구매 기록 저장, 사용 중인 룸·사물함 조회, 탈퇴 시 기록 삭제 |
 | 11/04 | `nw_tighten_new_table_grants` | 새 표의 비로그인 권한 축소 |
 | 11/04 | `nw_polling_indexes` | 5초 갱신 조회용 색인 |
+| 11/04 | `nw_pay_with_member_pass` | 시간권·자유석 예약, 취소 시 시간 복구, 잔여 시간은 DB 함수만 변경 |
+| 11/04 | `nw_pass_notice_hours_format` | 알림의 시간 표기 정리 |
 
 ## 설정 변경
 
