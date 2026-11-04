@@ -596,7 +596,8 @@ function view(){
 function liveCounts(){
   const t=today(),n=Math.max(nowMin(),SET().open);
   const free=SEATS.filter(s=>seatInfo(s,t,n,n+1).st==='free').length;
-  const inuse=SEATS.filter(s=>seatInfo(s,t,n,n+1).st==='inuse').length;
+  /* 내가 입실한 좌석은 '내 자리'로 표시되지만 이용 중 숫자에는 포함한다 */
+  const inuse=SEATS.filter(s=>{const i=seatInfo(s,t,n,n+1);return i.st==='inuse'||(i.st==='mine'&&i.res&&i.res.status==='checkedin');}).length;
   return {free,inuse,total:SEATS.length};
 }
 const FAQ=[
@@ -1170,7 +1171,10 @@ function modalHTML(){
 
 /* ===== 동작 ===== */
 async function checkIn(id){const r=D.reservations[id];if(!r)return;await Store.patch('reservations',id,{status:'checkedin',checkinAt:Date.now()});if(r.userId)notify(r.userId,'체크인 완료',`${r.seatId} 좌석 이용을 시작합니다. 퇴실할 때 QR을 한 번 더 스캔해 주세요.`);toast(`${r.seatId} 체크인 완료`);}
-async function checkOut(id){const r=D.reservations[id];if(!r)return;await Store.patch('reservations',id,{status:'done',checkoutAt:Date.now()});toast(`${r.seatId} 퇴실 처리되었습니다.`);if(r.date===today())notifyWaiters(SEAT[r.seatId].zone,r.date);}
+async function checkOut(id){const r=D.reservations[id];if(!r)return;await Store.patch('reservations',id,{status:'done',checkoutAt:Date.now()});
+  /* 팀 프로젝트룸: 입실한 사람이 모두 나가면 남은 좌석도 연다 */
+  if(r.groupId){const grp=Object.values(D.reservations).filter(x=>x.groupId===r.groupId);if(!grp.some(x=>x.status==='checkedin'))for(const x of grp.filter(x=>x.status==='booked'))await Store.patch('reservations',x.id,{status:'done'});}
+  toast(`${r.seatId} 퇴실 처리되었습니다.`);if(r.date===today())notifyWaiters(SEAT[r.seatId].zone,r.date);}
 const ACT={
   nav:t=>{if(['my','support','mypage'].includes(t.dataset.v)&&!ME()){openLogin(t.dataset.v);return;}S.asCustomer=isAdmin()?true:S.asCustomer;go(t.dataset.v);},
   atab:t=>{S.atab=t.dataset.v;S.asCustomer=false;S.kiosk=null;go(S.view);},
