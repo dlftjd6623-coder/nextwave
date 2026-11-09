@@ -534,7 +534,9 @@ function sweep(){
 const S={view:'home',atab:'dash',mytab:'now',book:{date:today(),start:null,dur:120,seat:null},modal:null,bell:false,aSeat:null,rf:{date:today(),status:'all'},walk:{seat:null},errs:{}};
 let pending=false,fresh=false;
 const isEditing=()=>{const a=document.activeElement;return a&&a.closest&&a.closest('#app,#modal')&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='checkbox'&&a.type!=='radio';};
-function schedule(){if(isEditing()){pending=true;return;}if(pending==='raf')return;pending='raf';requestAnimationFrame(()=>{pending=false;render();});}
+/* 애니메이션 신호가 멈추는 환경(일부 내장 브라우저 등)에서도 화면이 갱신되도록 짧은 타이머를 함께 건다 */
+function schedule(){if(isEditing()){pending=true;return;}if(pending==='raf')return;pending='raf';
+  const run=()=>{if(pending!=='raf')return;pending=false;render();};requestAnimationFrame(run);setTimeout(run,120);}
 setInterval(()=>{if(pending===true&&!isEditing()){pending=false;render();}},700);
 
 const lastHtml={app:null,modal:null};
@@ -773,7 +775,7 @@ function bookPanel(s,e){
   }else{
     const zoneFree=zoneSeats(seat.zone).filter(x=>seatInfo(x,b.date,s,e).st==='free').length;
     body=`<div class="notice-bar ${info.st==='off'?'bad':''}">${esc(info.label)}${info.memo?` · ${esc(info.memo)}`:''}</div>
-      ${info.st==='mine'?`<button class="btn block" data-act="nav" data-v="my">내 예약 보기</button>`:zoneFree?`<p class="small muted">같은 구역에 같은 시간 빈자리가 ${zoneFree}석 있습니다.</p>`:`<p class="small">이 시간 ${z.label}이 모두 찼습니다. 취소가 나오면 알림을 보내드릴까요?</p><button class="btn block" data-act="waitlist">빈자리 알림 신청</button>`}`;
+      ${info.st==='mine'?`<button class="btn block" data-act="nav" data-v="my">내 예약 보기</button>`:R.on&&R.availErr?`<p class="small muted">좌석 현황을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>`:zoneFree?`<p class="small muted">같은 구역에 같은 시간 빈자리가 ${zoneFree}석 있습니다.</p>`:`<p class="small">이 시간 ${z.label}이 모두 찼습니다. 취소가 나오면 알림을 보내드릴까요?</p><button class="btn block" data-act="waitlist">빈자리 알림 신청</button>`}`;
   }
   return `<div class="panel stack" style="gap:12px">${summary}<div><div class="eyebrow">${esc(z.label)}</div><div class="sel-seat">${seat.id}</div><p class="small muted">${esc(z.desc)}</p></div>${body}</div>`;
 }
@@ -1402,6 +1404,8 @@ const RST={available:'free',reserved:'booked',occupied:'inuse',unavailable:'off'
 const RRES={pending_payment:'pending',confirmed:'booked',in_use:'checkedin',completed:'done',cancelled:'cancelled',no_show:'noshow',declined:'cancelled',expired:'cancelled'};
 const RCOMP={received:'접수',in_progress:'처리중',resolved:'완료',closed:'완료'};
 const kstISO=(date,min)=>new Date(new Date(date+'T00:00:00+09:00').getTime()+min*60000).toISOString();
+/* '지금 바로 시작'은 분 단위로 내린 시각이 이미 지났으므로 몇 초 뒤로 보낸다 (DB는 지금 이후만 받음) */
+const startISO=(date,min)=>S.book.nowMode&&date===today()&&min<=nowMin()?new Date(Date.now()+30000).toISOString():kstISO(date,min);
 const kp=iso=>{const d=new Date(new Date(iso).getTime()+9*3600000);return {date:d.toISOString().slice(0,10),min:d.getUTCHours()*60+d.getUTCMinutes()};};
 const errMsg=e=>(e&&(e.message||e.error_description))||'처리하지 못했습니다. 잠시 후 다시 시도하세요.';
 async function rpc(name,args){const {data,error}=await sb.rpc(name,args||{});if(error)throw error;return data;}
@@ -1535,7 +1539,7 @@ async function rDelPass(id){const {error}=await sb.from('nw_member_passes').dele
 function rEnsureAvail(date,s,e){
   const key=date+'|'+s+'|'+e;if(R.availKey===key||R.availBusy)return;R.availKey=key;R.availErr='';
   R.availBusy=true;
-  rpc('nw_seat_availability',{p_starts_at:kstISO(date,s),p_ends_at:kstISO(date,e)}).then(rows=>{
+  rpc('nw_seat_availability',{p_starts_at:startISO(date,s),p_ends_at:kstISO(date,e)}).then(rows=>{
     const m={};(rows||[]).forEach(r=>{m[r.code]=r.status;R.seatId[r.code]=r.id;R.codeOf[r.id]=r.code;});R.avail=m;
   }).catch(err=>{R.avail={};R.availErr=errMsg(err);}).finally(()=>{R.availBusy=false;schedule();});
 }
@@ -1624,7 +1628,7 @@ const RACT={
   readall:()=>{try{localStorage.setItem(readKey(),JSON.stringify(R.notices.map(n=>n.id)));}catch(e){}R.notices=R.notices.map(n=>({...n,read:true}));render();},
   bell:()=>{S.bell=!S.bell;if(S.bell)rLoadInbox();render();},
   waitlist:async()=>{const me=ME();if(!me){openLogin('book');return;}const b=S.book;
-    try{await rpc('nw_join_waitlist',{p_zone:SEAT[b.seat].zone,p_starts_at:kstISO(b.date,b.start),p_ends_at:kstISO(b.date,b.start+b.dur)});toast('빈자리 대기를 등록했습니다. 자리가 나면 알림으로 알려드립니다.');await rLoadWaits();}catch(e){toast(errMsg(e));}},
+    try{await rpc('nw_join_waitlist',{p_zone:SEAT[b.seat].zone,p_starts_at:startISO(b.date,b.start),p_ends_at:kstISO(b.date,b.start+b.dur)});toast('빈자리 대기를 등록했습니다. 자리가 나면 알림으로 알려드립니다.');await rLoadWaits();}catch(e){toast(errMsg(e));}},
   showqr:async t=>{const id=t.dataset.id;S.modal={type:'qr',id};render();
     try{const d=await rpc('nw_get_qr',{p_reservation_id:id});if(S.modal&&S.modal.id===id){S.modal.token=d.token;S.modal.exp=d.expires_at;render();}}catch(e){if(S.modal&&S.modal.id===id){S.modal.err=errMsg(e);render();}}},
   selfin:t=>RACT.showqr(t),
