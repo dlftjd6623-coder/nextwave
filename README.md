@@ -1,7 +1,7 @@
 # NextWave — 공유 오피스 예약·이용현황 관리 솔루션
 
 좌석 확인부터 예약, 결제, QR 입퇴실, 노쇼 처리, 환불, 민원, 운영 현황까지 한곳에서 처리하는 웹 서비스입니다.
-클라우드캡스톤디자인2 6조 과제이며, 참여 기업은 주식회사 드림플로우입니다.
+클라우드캡스톤디자인2 6조 과제입니다.
 
 **[사이트 바로 가기](https://dlftjd6623-coder.github.io/nextwave/)** · [발표자료 내려받기](https://dlftjd6623-coder.github.io/nextwave/docs/%EB%B0%9C%ED%91%9C%EC%9E%90%EB%A3%8C_6%EC%A1%B0.pptx) · [발표 시연 순서](docs/시연-순서.md) · [요구사항 추적](docs/요구사항-추적.md) · [테스트 결과](docs/테스트-결과.md) · [DB 변경 내역](docs/DB-변경내역.md)
 
