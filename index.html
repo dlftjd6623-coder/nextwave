@@ -795,7 +795,7 @@ function doReserve(){
   const hp=passes.find(p=>p.kind==='hours'&&p.hoursLeft*60>=b.dur);
   const pp=passes.find(p=>p.kind==='period'&&p.startDate<=b.date&&p.endDate>=b.date);
   const extra=[];if(tp)extra.push(['team',`팀 멤버십 (0원) · 룸 전체 ${roomSeats(seat.room).length}석`]);if(pp)extra.push(['period','자유석 멤버십 (0원)']);if(hp)extra.push(['hours',`시간권 ${durLabel(b.dur)} 차감`]);
-  S.modal={type:'pay',title:'예약 결제',lines:[['좌석',`${seat.id} · ${z.label}`],['일시',`${fmtDate(b.date)} ${hm(s)}–${hm(e)}`],['이용 시간',durLabel(b.dur)]],amount:tp?0:price,extra,
+  S.modal={type:'pay',title:'예약 결제',rules:true,lines:[['좌석',`${seat.id} · ${z.label}`],['일시',`${fmtDate(b.date)} ${hm(s)}–${hm(e)}`],['이용 시간',durLabel(b.dur)]],amount:tp?0:price,extra,
     onPaid:async pm=>{
       if(tp&&pm==='team'){const seats=roomSeats(seat.room);
         if(seats.some(x=>seatInfo(x,b.date,s,e).st!=='free')){toast('이 시간에 프로젝트룸에 이미 예약이 있습니다.');return false;}
@@ -883,6 +883,9 @@ function buyPass(k,i){
 
 /* ===== 고객: 내 예약 ===== */
 /* 문자 앱을 열어 고객 번호와 안내 문구를 채운다 (운영자 휴대폰·PC 문자 앱으로 실제 발송) */
+/* 이용 규칙: 팀 DB에서 받은 것을 쓰고, 시연 모드에서는 같은 문구를 쓴다 */
+const LOCAL_RULES=[{id:'r1',title:'좌석·이용 일정 확인',body:'선택한 좌석과 이용 날짜, 시작·종료 시간을 확인했습니다.'},{id:'r2',title:'결제와 예약 확정',body:'사이트에서 간편결제(시연용, 실제 청구 없음)를 마치면 예약이 바로 확정됩니다. 현장 결제로 신청한 예약은 관리자가 확인한 뒤 확정되며 금액은 현장에서 결제합니다. 취소하면 시작 2시간 전까지 100%, 30분 전까지 50%가 환불되고 그 이후에는 환불되지 않습니다.'}];
+const ruleList=()=>R.rules&&R.rules.length?R.rules:LOCAL_RULES;
 const smsLink=w=>`sms:${String(w.phone).replace(/[^0-9+]/g,'')}?body=${encodeURIComponent(`[${SET().cafeName}] ${w.name}님, 요청하신 시간에 빈자리가 생겼습니다. 안내데스크로 오시면 바로 배정해 드립니다.`)}`;
 function resStatusPill(r){if(r.status==='checkedin'&&r.date&&endMs(r)<=Date.now())return '<span class="pill bad">시간 초과</span>';return ({pending:'<span class="pill warn">승인 대기</span>',booked:'<span class="pill hl">체크인 대기</span>',checkedin:'<span class="pill info">이용중</span>',done:'<span class="pill ok">이용 완료</span>',cancelled:'<span class="pill">취소</span>',noshow:'<span class="pill bad">노쇼 자동취소</span>'})[r.status]||'';}
 function vMy(){
@@ -954,7 +957,7 @@ function vDash(){
     <div class="kpi"><span>오늘 체크인 대기</span><b>${upcoming}</b><small>예약 ${todays.length}건 중</small></div>
     <div class="kpi"><span>오늘 노쇼 자동취소</span><b style="color:${ns.length?'var(--bad)':'inherit'}">${ns.length}</b><small>유예 ${st.graceMin}분</small></div>
     <div class="kpi"><span>오늘 결제 (환불 차감)</span><b>${rev.toLocaleString('ko-KR')}</b><small>원</small></div>
-    <div class="kpi"><span>오늘 이용률</span><b>${util}%</b><small>${dsh?`대기 ${dsh.waiting}명 · 환불 대기 ${dsh.pending_refunds}건`:'운영 시간 대비 실제 사용'}</small></div>
+    <div class="kpi"><span>오늘 이용률</span><b>${util}%</b><small>${dsh?`대기 ${dsh.waiting}명 · 환불 대기 ${dsh.pending_refunds}건`:`대기 ${waitList().filter(w=>w.status==='waiting').length}명 · 환불 대기 0건`}</small></div>
     <div class="kpi"><span>미처리 민원</span><b style="color:${openComp?'var(--warn)':'inherit'}">${openComp}</b><small><a href="#" data-act="atab" data-v="acomp">민원 보기</a></small></div>
   </div>
   <div class="panel"><div class="spread"><h3 style="margin:0">오늘 시간대별 예약 (혼잡도)</h3><span class="small muted">시간마다 겹치는 예약 건수 · 초록 막대가 현재 시간</span></div><div style="overflow-x:auto"><svg class="chart" viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px;height:auto;display:block;margin-top:10px">${grid}${bars}</svg></div></div>
@@ -1153,10 +1156,11 @@ function modalHTML(){
     <dl class="kv">${m.lines.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
     <div class="spread" style="border-top:1px solid var(--line);padding-top:12px"><span class="muted">결제 금액</span><span class="price">${won(m.amount)}</span></div>
     <div class="field"><label>결제 수단</label>${payMethods(m.extra)}</div>
-    <p class="small muted">시연용 간편결제입니다. 실제로 청구되지 않습니다.</p></div>
-    <footer><button class="btn" type="button" data-act="close">취소</button><button class="btn pri" type="submit" ${m.busy?'disabled':''}>${m.busy?'결제 중…':'결제하기'}</button></footer></form>`);
+    ${m.rules?`<div class="notice-bar info">결제가 승인되면 예약이 바로 확정됩니다. 시연용 결제라 실제로 청구되지 않습니다.</div>
+    <div class="field"><label>이용 규칙 동의</label>${ruleList().map(r=>`<label class="check"><input type="checkbox" data-rule="${esc(String(r.id))}"> <span><b>${esc(r.title)}</b>${r.body?` · ${esc(r.body)}`:''}</span></label>`).join('')}${e.rules?`<span class="err">${e.rules}</span>`:''}</div>`:'<p class="small muted">시연용 간편결제입니다. 실제로 청구되지 않습니다.</p>'}</div>
+    <footer><button class="btn" type="button" data-act="close">취소</button><button class="btn pri" type="submit" ${m.busy?'disabled':''}>${m.busy?'결제 중…':m.amount?`${won(m.amount)} 결제하기`:'예약 확정하기'}</button></footer></form>`);
   if(m.type==='qr'){const r=D.reservations[m.id];if(!r)return '';
-    return shell('입장 QR',`<div class="body"><div class="qr"><div data-qr="NEXTWAVE:${r.code}"></div><div class="code">${r.code}</div></div><dl class="kv"><dt>좌석</dt><dd class="mono">${r.seatId}</dd><dt>일시</dt><dd>${fmtDate(r.date)} ${hm(r.start)}–${hm(r.end)}</dd><dt>상태</dt><dd>${resStatusPill(r)}</dd></dl><p class="small muted">입구 안내데스크의 QR 단말에 화면을 비춰 주세요. 퇴실할 때도 한 번 더 스캔합니다.</p></div>`);}
+    return shell('입장 QR',`<div class="body"><div class="qr"><div data-qr="NEXTWAVE:${r.code}"></div><div class="code">${r.code}</div></div><dl class="kv"><dt>좌석</dt><dd class="mono">${r.seatId}</dd><dt>일시</dt><dd>${fmtDate(r.date)} ${hm(r.start)}–${hm(r.end)}</dd><dt>상태</dt><dd>${resStatusPill(r)}</dd></dl><p class="small muted">입구 안내데스크의 QR 단말에 화면을 비춰 주세요. 퇴실할 때도 한 번 더 스캔합니다.</p>${(r.status==='booked'&&r.date===today()&&nowMin()>=r.start-10)||r.status==='checkedin'?`<button class="btn pri block" data-act="luseqr" data-id="${r.id}">${r.status==='checkedin'?'이 QR로 퇴실 기록':'이 QR로 입실 기록'}</button>`:''}</div>`);}
   if(m.type==='cancel'){const r=D.reservations[m.id];if(!r)return '';const ratio=isAdmin()&&m.full?1:refundRatio(r);
     const amt=r.pay==='hours'?`${+(r.hoursUsed*ratio).toFixed(2)}시간 복원`:won(Math.round(r.price*ratio/100)*100);
     return shell('예약 취소',`<div class="body"><dl class="kv"><dt>좌석</dt><dd class="mono">${r.seatId}</dd><dt>일시</dt><dd>${fmtDate(r.date)} ${hm(r.start)}–${hm(r.end)}</dd><dt>결제</dt><dd>${PM[r.pay]||''} ${won(r.price)}</dd></dl>
@@ -1203,8 +1207,9 @@ const ACT={
   buypass:t=>buyPass(t.dataset.k,+t.dataset.i),
   mytab:t=>{S.mytab=t.dataset.v;render();},
   showqr:t=>{S.modal={type:'qr',id:t.dataset.id};render();},
-  selfin:t=>checkIn(t.dataset.id),ain:t=>checkIn(t.dataset.id),
-  checkout:t=>checkOut(t.dataset.id),
+  selfin:t=>{S.modal={type:'qr',id:t.dataset.id};render();},ain:t=>checkIn(t.dataset.id),
+  checkout:t=>{if(isAdmin())return checkOut(t.dataset.id);S.modal={type:'qr',id:t.dataset.id};render();},
+  luseqr:async t=>{const r=D.reservations[t.dataset.id];if(!r)return;S.modal=null;if(r.status==='checkedin')await checkOut(r.id);else await checkIn(r.id);render();},
   cancel:t=>{S.modal={type:'cancel',id:t.dataset.id};render();},
   docancel:async t=>{const r=D.reservations[t.dataset.id];if(!r||!ACTIVE(r)){S.modal=null;render();return;}
     const ratio=isAdmin()&&S.modal.full?1:refundRatio(r),p={status:'cancelled',cancelledAt:Date.now(),refundRatio:ratio,cancelledBy:isAdmin()?'admin':'user'};
@@ -1321,6 +1326,7 @@ const FORM={
     const salt=uid('s');await Store.patch('users',u.id,{salt,pw:await hashPw(pw,salt)});
     S.verify=null;S.modal={type:'login'};S.errs={};fresh=true;render();toast('비밀번호를 바꿨습니다. 새 비밀번호로 로그인하세요.');},
   async pay(){const m=S.modal,pm=document.querySelector('input[name="pm"]:checked')?.value;if(!pm||m.busy)return;
+    if(m.rules&&[...document.querySelectorAll('[data-rule]')].some(b=>!b.checked)){S.errs={rules:'모든 이용 규칙에 동의해야 예약할 수 있습니다.'};render();return;}S.errs={};
     m.busy=true;render();await new Promise(r=>setTimeout(r,700));await m.onPaid(pm);if(S.modal===m)S.modal=null;render();},
   async complaint(){const me=ME(),body=val('cp-body'),cat=document.querySelector('input[name="cat"]:checked')?.value,seat=val('cp-seat').toUpperCase();
     if(body.length<5){S.errs={cpBody:'내용을 5자 이상 적어 주세요.'};render();return;}
